@@ -39,11 +39,6 @@ import static com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC
 import static com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_TIME_UUID;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID;
 
-/**
- * Reference used: https://github.com/devunwired/accessory-samples/blob/master/BluetoothGattPeripheral/src/main/java/com/example/android/bluetoothgattperipheral/PeripheralActivity.java
- */
-
-
 public class ServerActivity extends AppCompatActivity {
 
     private static final String TAG = "ServerActivity";
