@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">BLE Testbed</string>
+
+    <!-- Main -->
+
+    <string name="server">Server</string>
+    <string name="client">Client</string>
+
+    <!-- Server -->
+
+    <string name="bluetooth_server">Bluetooth Server</string>
+    <string name="actions">Actions</string>
+    <string name="send_timestamp">Send Timestamp</string>
+    <string name="restart">Restart</string>
+
+    <!-- Client -->
+
+    <string name="bluetooth_client">Bluetooth Client</string>
+    <string name="scanning">Scanning</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="ble_servers">BLE Servers</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disonnect</string>
+    <string name="messages">Messages</string>
+    <string name="send">Send</string>
+    <string name="request_timestamp">Request Timestamp</string>
+
+    <!-- Logs -->
+
+    <string name="logs">Logs</string>
+    <string name="clear">Clear</string>
+
+</resources>
