@@ -126,14 +126,12 @@ public class ServerActivity extends AppCompatActivity {
         BluetoothGattService service = new BluetoothGattService(SERVICE_UUID,
                 BluetoothGattService.SERVICE_TYPE_PRIMARY);
 
-        // Read + write characteristic with notifications
+        // Read characteristic with notifications
         BluetoothGattCharacteristic readWriteCharacteristic = new BluetoothGattCharacteristic(
                 CHARACTERISTIC_ECHO_UUID,
-                BluetoothGattCharacteristic.PROPERTY_READ
-                        | BluetoothGattCharacteristic.PROPERTY_WRITE
+                BluetoothGattCharacteristic.PROPERTY_WRITE
                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-                BluetoothGattCharacteristic.PERMISSION_READ
-                        | BluetoothGattCharacteristic.PERMISSION_WRITE);
+                BluetoothGattCharacteristic.PERMISSION_WRITE);
 
         // Read only with notifications
         BluetoothGattCharacteristic readOnlyCharacteristic = new BluetoothGattCharacteristic(
@@ -169,7 +167,7 @@ public class ServerActivity extends AppCompatActivity {
         }
 
         AdvertiseSettings settings = new AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
                 .setConnectable(true)
                 .setTimeout(0)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_LOW)
@@ -228,21 +226,16 @@ public class ServerActivity extends AppCompatActivity {
 
             log("onCharacteristicReadRequest " + characteristic.getUuid().toString());
 
-            if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.getUuid())) {
-                // Only echos, has nothing to send back
-                // TODO respond failure?
-                mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
-            } else if (CHARACTERISTIC_TIME_UUID.equals(characteristic.getUuid())) {
+            // only characteristic with read permission
+            if (CHARACTERISTIC_TIME_UUID.equals(characteristic.getUuid())) {
                 // Pull time value and send
-                // TODO should this respond here or in notification?
                 byte[] value = getTimestampBytes();
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, value);
-            } else if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)
-                    != BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) {
-                // Unknown characteristic requiring response, send failure
+            } else if (requiresResponse(characteristic) && hasReadPermission(characteristic)) {
+                // Unknown read characteristic requiring response, send failure
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
             }
-            // Not one of our characteristics, or has the NO_RESPONSE property set
+            // Not one of our characteristics, has NO_RESPONSE property set, or has no read permission
         }
 
         @Override
@@ -263,17 +256,18 @@ public class ServerActivity extends AppCompatActivity {
             log("onCharacteristicWriteRequest" + characteristic.getUuid().toString());
             log("Received: " + StringUtils.byteArrayInHexFormat(value));
 
-            // TODO check write permissions
+            // Check write permissions
+            if (hasWritePermission(characteristic)) {
+                mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
+                return;
+            }
 
-            // Only characteristic that has write permissions
             if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.getUuid())) {
-                if (responseNeeded) {
-                    // TODO are we able to respond here?
-                    mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, value);
-                }
+                mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
 
                 // Reverse message to differentiate original message & response
                 byte[] response = reverseBytes(value);
+                characteristic.setValue(response);
                 log("Sending: " + StringUtils.byteArrayInHexFormat(response));
                 notifyCharacteristicEcho(response);
             }
@@ -329,7 +323,7 @@ public class ServerActivity extends AppCompatActivity {
         }
     }
 
-    // Characteristic values
+    // Characteristic operations
 
     private byte[] reverseBytes(byte[] value) {
         int length = value.length;
@@ -350,6 +344,21 @@ public class ServerActivity extends AppCompatActivity {
     private void sendTimestamp() {
         byte[] timestampBytes = getTimestampBytes();
         notifyCharacteristicTime(timestampBytes);
+    }
+
+    private boolean hasReadPermission(BluetoothGattCharacteristic characteristic) {
+        return (characteristic.getProperties() & BluetoothGattCharacteristic.PERMISSION_READ)
+                == BluetoothGattCharacteristic.PERMISSION_READ;
+    }
+
+    private boolean hasWritePermission(BluetoothGattCharacteristic characteristic) {
+        return (characteristic.getProperties() & BluetoothGattCharacteristic.PERMISSION_READ)
+                == BluetoothGattCharacteristic.PERMISSION_READ;
+    }
+
+    private boolean requiresResponse(BluetoothGattCharacteristic characteristic) {
+        return (characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)
+                != BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE;
     }
 
     // Device operations

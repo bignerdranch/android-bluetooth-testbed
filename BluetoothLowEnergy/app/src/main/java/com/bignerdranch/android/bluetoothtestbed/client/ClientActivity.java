@@ -296,7 +296,6 @@ public class ClientActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
-            // TODO can we get a new value here?
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 log("Characteristic written successfully");
             } else {
