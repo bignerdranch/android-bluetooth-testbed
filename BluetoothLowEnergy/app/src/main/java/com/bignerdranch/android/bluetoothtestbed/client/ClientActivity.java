@@ -113,9 +113,6 @@ public class ClientActivity extends AppCompatActivity {
         mScanCallback = new BtleScanCallback(mScanResults);
 
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
-        ScanSettings settings = new ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build();
 
         // Note: Filtering does not work the same (or at all) on most devices. It also is unable to
         // search for a mask or anything less than a full UUID.
@@ -126,6 +123,11 @@ public class ClientActivity extends AppCompatActivity {
                 .build();
         List<ScanFilter> filters = new ArrayList<>();
         filters.add(scanFilter);
+
+        ScanSettings settings = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build();
+
         mBluetoothLeScanner.startScan(filters, settings, mScanCallback);
 
         mHandler = new Handler();
@@ -260,8 +262,7 @@ public class ClientActivity extends AppCompatActivity {
             }
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                log("Connected to device " + gatt.getDevice()
-                        .getAddress());
+                log("Connected to device " + gatt.getDevice().getAddress());
                 mConnected = true;
                 gatt.discoverServices();
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -295,6 +296,7 @@ public class ClientActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicWrite(gatt, characteristic, status);
+            // TODO can we get a new value here?
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 log("Characteristic written successfully");
             } else {

@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattServer;
-import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
@@ -170,10 +169,10 @@ public class ServerActivity extends AppCompatActivity {
         }
 
         AdvertiseSettings settings = new AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
                 .setConnectable(true)
                 .setTimeout(0)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_LOW)
                 .build();
 
         ParcelUuid parcelUuid = new ParcelUuid(SERVICE_UUID);
@@ -205,7 +204,7 @@ public class ServerActivity extends AppCompatActivity {
 
     // Server callbacks
 
-    private BluetoothGattServerCallback mGattServerCallback = new GattServerCallback() {
+    private GattServerCallback mGattServerCallback = new GattServerCallback() {
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             super.onConnectionStateChange(device, status, newState);
@@ -221,17 +220,21 @@ public class ServerActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+        public void onCharacteristicReadRequest(BluetoothDevice device,
+                                                int requestId,
+                                                int offset,
+                                                BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
 
-            log("onCharacteristicReadRequest " + characteristic.getUuid()
-                    .toString());
+            log("onCharacteristicReadRequest " + characteristic.getUuid().toString());
 
             if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.getUuid())) {
                 // Only echos, has nothing to send back
+                // TODO respond failure?
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
             } else if (CHARACTERISTIC_TIME_UUID.equals(characteristic.getUuid())) {
                 // Pull time value and send
+                // TODO should this respond here or in notification?
                 byte[] value = getTimestampBytes();
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, value);
             } else if ((characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)
@@ -243,7 +246,13 @@ public class ServerActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+        public void onCharacteristicWriteRequest(BluetoothDevice device,
+                                                 int requestId,
+                                                 BluetoothGattCharacteristic characteristic,
+                                                 boolean preparedWrite,
+                                                 boolean responseNeeded,
+                                                 int offset,
+                                                 byte[] value) {
             super.onCharacteristicWriteRequest(device,
                     requestId,
                     characteristic,
@@ -254,9 +263,12 @@ public class ServerActivity extends AppCompatActivity {
             log("onCharacteristicWriteRequest" + characteristic.getUuid().toString());
             log("Received: " + StringUtils.byteArrayInHexFormat(value));
 
+            // TODO check write permissions
+
             // Only characteristic that has write permissions
             if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.getUuid())) {
                 if (responseNeeded) {
+                    // TODO are we able to respond here?
                     mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, value);
                 }
 
@@ -268,13 +280,22 @@ public class ServerActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onDescriptorReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattDescriptor descriptor) {
+        public void onDescriptorReadRequest(BluetoothDevice device,
+                                            int requestId,
+                                            int offset,
+                                            BluetoothGattDescriptor descriptor) {
             super.onDescriptorReadRequest(device, requestId, offset, descriptor);
             log("onDescriptorReadRequest" + descriptor.getUuid().toString());
         }
 
         @Override
-        public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+        public void onDescriptorWriteRequest(BluetoothDevice device,
+                                             int requestId,
+                                             BluetoothGattDescriptor descriptor,
+                                             boolean preparedWrite,
+                                             boolean responseNeeded,
+                                             int offset,
+                                             byte[] value) {
             super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value);
             log("onDescriptorWriteRequest" + descriptor.getUuid().toString());
         }
