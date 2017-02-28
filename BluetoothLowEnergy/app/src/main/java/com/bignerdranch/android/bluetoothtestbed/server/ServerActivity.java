@@ -27,15 +27,20 @@ import android.view.View;
 
 import com.bignerdranch.android.bluetoothtestbed.R;
 import com.bignerdranch.android.bluetoothtestbed.databinding.ActivityServerBinding;
+import com.bignerdranch.android.bluetoothtestbed.util.BluetoothUtils;
 import com.bignerdranch.android.bluetoothtestbed.util.StringUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_ECHO_UUID;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_TIME_UUID;
+import static com.bignerdranch.android.bluetoothtestbed.Constants.CLIENT_CONFIGURATION_DESCRIPTOR_UUID;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID;
 
 public class ServerActivity extends AppCompatActivity {
@@ -46,7 +51,8 @@ public class ServerActivity extends AppCompatActivity {
 
     private Handler mHandler;
     private Handler mLogHandler;
-    private ArrayList<BluetoothDevice> mDevices;
+    private List<BluetoothDevice> mDevices;
+    private Map<String, byte[]> mClientConfigurations;
 
     private BluetoothGattServer mGattServer;
     private BluetoothManager mBluetoothManager;
@@ -61,6 +67,7 @@ public class ServerActivity extends AppCompatActivity {
         mHandler = new Handler();
         mLogHandler = new Handler(Looper.getMainLooper());
         mDevices = new ArrayList<>();
+        mClientConfigurations = new HashMap<>();
 
         mBluetoothManager = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
         mBluetoothAdapter = mBluetoothManager.getAdapter();
@@ -127,21 +134,30 @@ public class ServerActivity extends AppCompatActivity {
                 BluetoothGattService.SERVICE_TYPE_PRIMARY);
 
         // Read characteristic with notifications
-        BluetoothGattCharacteristic readWriteCharacteristic = new BluetoothGattCharacteristic(
+        BluetoothGattCharacteristic writeCharacteristic = new BluetoothGattCharacteristic(
                 CHARACTERISTIC_ECHO_UUID,
-                BluetoothGattCharacteristic.PROPERTY_WRITE
-                        | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                BluetoothGattCharacteristic.PROPERTY_WRITE,
+                        // Somehow this is not necessary, the client can still enable notifications
+//                        | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                 BluetoothGattCharacteristic.PERMISSION_WRITE);
 
         // Read only with notifications
-        BluetoothGattCharacteristic readOnlyCharacteristic = new BluetoothGattCharacteristic(
+        BluetoothGattCharacteristic notifyCharacteristic = new BluetoothGattCharacteristic(
                 CHARACTERISTIC_TIME_UUID,
-                BluetoothGattCharacteristic.PROPERTY_READ
-                        | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-                BluetoothGattCharacteristic.PERMISSION_READ);
+                // Somehow this is not necessary, the client can still enable notifications
+//                BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                0,
+                0);
 
-        service.addCharacteristic(readWriteCharacteristic);
-        service.addCharacteristic(readOnlyCharacteristic);
+        BluetoothGattDescriptor clientConfigurationDescriptor = new BluetoothGattDescriptor(
+                CLIENT_CONFIGURATION_DESCRIPTOR_UUID,
+                BluetoothGattDescriptor.PERMISSION_READ | BluetoothGattDescriptor.PERMISSION_WRITE);
+        clientConfigurationDescriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+
+        notifyCharacteristic.addDescriptor(clientConfigurationDescriptor);
+
+        service.addCharacteristic(writeCharacteristic);
+        service.addCharacteristic(notifyCharacteristic);
 
         mGattServer.addService(service);
     }
@@ -207,8 +223,8 @@ public class ServerActivity extends AppCompatActivity {
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             super.onConnectionStateChange(device, status, newState);
             log("onConnectionStateChange " + device.getAddress()
-                    + " status " + status
-                    + " newState " + newState);
+                    + "\nstatus " + status
+                    + "\nnewState " + newState);
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 addDevice(device);
@@ -217,6 +233,8 @@ public class ServerActivity extends AppCompatActivity {
             }
         }
 
+        // The Gatt will reject Characteristic Read requests that do not have the permission set,
+        // so there is no need to check inside the callback
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device,
                                                 int requestId,
@@ -231,13 +249,15 @@ public class ServerActivity extends AppCompatActivity {
                 // Pull time value and send
                 byte[] value = getTimestampBytes();
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, value);
-            } else if (requiresResponse(characteristic) && hasReadPermission(characteristic)) {
+            } else if (requiresResponse(characteristic)) {
                 // Unknown read characteristic requiring response, send failure
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
             }
-            // Not one of our characteristics, has NO_RESPONSE property set, or has no read permission
+            // Not one of our characteristics or has NO_RESPONSE property set
         }
 
+        // The Gatt will reject Characteristic Write requests that do not have the permission set,
+        // so there is no need to check inside the callback
         @Override
         public void onCharacteristicWriteRequest(BluetoothDevice device,
                                                  int requestId,
@@ -253,14 +273,8 @@ public class ServerActivity extends AppCompatActivity {
                     responseNeeded,
                     offset,
                     value);
-            log("onCharacteristicWriteRequest" + characteristic.getUuid().toString());
-            log("Received: " + StringUtils.byteArrayInHexFormat(value));
-
-            // Check write permissions
-            if (hasWritePermission(characteristic)) {
-                mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
-                return;
-            }
+            log("onCharacteristicWriteRequest" + characteristic.getUuid().toString()
+                    + "\nReceived: " + StringUtils.byteArrayInHexFormat(value));
 
             if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.getUuid())) {
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
@@ -273,6 +287,8 @@ public class ServerActivity extends AppCompatActivity {
             }
         }
 
+        // The Gatt will reject Descriptor Read requests that do not have the permission set,
+        // so there is no need to check inside the callback
         @Override
         public void onDescriptorReadRequest(BluetoothDevice device,
                                             int requestId,
@@ -282,6 +298,8 @@ public class ServerActivity extends AppCompatActivity {
             log("onDescriptorReadRequest" + descriptor.getUuid().toString());
         }
 
+        // The Gatt will reject Descriptor Write requests that do not have the permission set,
+        // so there is no need to check inside the callback
         @Override
         public void onDescriptorWriteRequest(BluetoothDevice device,
                                              int requestId,
@@ -291,7 +309,14 @@ public class ServerActivity extends AppCompatActivity {
                                              int offset,
                                              byte[] value) {
             super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value);
-            log("onDescriptorWriteRequest" + descriptor.getUuid().toString());
+            log("onDescriptorWriteRequest: " + descriptor.getUuid().toString()
+                    + "\nvalue: " + StringUtils.byteArrayInHexFormat(value));
+
+            if (CLIENT_CONFIGURATION_DESCRIPTOR_UUID.equals(descriptor.getUuid())) {
+                String deviceAddress = device.getAddress();
+                mClientConfigurations.put(deviceAddress, value);
+                mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
+            }
         }
 
         @Override
@@ -318,9 +343,33 @@ public class ServerActivity extends AppCompatActivity {
                 + ", new value: " + StringUtils.byteArrayInHexFormat(value));
 
         characteristic.setValue(value);
+        // Indications require confirmation, notifications do not
+        boolean confirm = requireConfirmation(characteristic);
         for (BluetoothDevice device : mDevices) {
-            mGattServer.notifyCharacteristicChanged(device, characteristic, false);
+            if (clientEnabledNotifications(device, characteristic)) {
+                mGattServer.notifyCharacteristicChanged(device, characteristic, confirm);
+            }
         }
+    }
+
+    private boolean clientEnabledNotifications(BluetoothDevice device, BluetoothGattCharacteristic characteristic) {
+        List<BluetoothGattDescriptor> descriptorList = characteristic.getDescriptors();
+        BluetoothGattDescriptor descriptor = BluetoothUtils.findClientConfigurationDescriptor(descriptorList);
+        if (descriptor == null) {
+            // There is no client configuration descriptor, treat as true
+            return true;
+        }
+        String deviceAddress = device.getAddress();
+        byte[] clientConfiguration = mClientConfigurations.get(deviceAddress);
+        if (clientConfiguration == null) {
+            // Descriptor has not been set
+            return false;
+        }
+
+        byte[] notificationEnabled = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
+        return clientConfiguration.length == notificationEnabled.length
+                && (clientConfiguration[0] & notificationEnabled[0]) == notificationEnabled[0]
+                && (clientConfiguration[1] & notificationEnabled[1]) == notificationEnabled[1];
     }
 
     // Characteristic operations
@@ -346,19 +395,14 @@ public class ServerActivity extends AppCompatActivity {
         notifyCharacteristicTime(timestampBytes);
     }
 
-    private boolean hasReadPermission(BluetoothGattCharacteristic characteristic) {
-        return (characteristic.getProperties() & BluetoothGattCharacteristic.PERMISSION_READ)
-                == BluetoothGattCharacteristic.PERMISSION_READ;
-    }
-
-    private boolean hasWritePermission(BluetoothGattCharacteristic characteristic) {
-        return (characteristic.getProperties() & BluetoothGattCharacteristic.PERMISSION_READ)
-                == BluetoothGattCharacteristic.PERMISSION_READ;
-    }
-
     private boolean requiresResponse(BluetoothGattCharacteristic characteristic) {
         return (characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)
                 != BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE;
+    }
+
+    private boolean requireConfirmation(BluetoothGattCharacteristic characteristic) {
+        return (characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE)
+                == BluetoothGattCharacteristic.PROPERTY_INDICATE;
     }
 
     // Device operations
@@ -370,7 +414,11 @@ public class ServerActivity extends AppCompatActivity {
 
     private void removeDevice(BluetoothDevice device) {
         log("Deviced removed: " + device.getAddress());
-        mHandler.post(() -> mDevices.remove(device));
+        mHandler.post(() -> {
+            mDevices.remove(device);
+            String deviceAddress = device.getAddress();
+            mClientConfigurations.remove(deviceAddress);
+        });
     }
 
     // Logging
@@ -384,6 +432,6 @@ public class ServerActivity extends AppCompatActivity {
     }
 
     private void clearLogs() {
-        mBinding.viewServerLog.logTextView.setText("");
+        mLogHandler.post(() -> mBinding.viewServerLog.logTextView.setText(""));
     }
 }

@@ -2,6 +2,7 @@ package com.bignerdranch.android.bluetoothtestbed.util;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.support.annotation.Nullable;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 import static com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_ECHO_STRING;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_TIME_STRING;
+import static com.bignerdranch.android.bluetoothtestbed.Constants.CLIENT_CONFIGURATION_DESCRIPTOR_SHORT_ID;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_STRING;
 
 public class BluetoothUtils {
@@ -90,6 +92,28 @@ public class BluetoothUtils {
 
     private static boolean matchesCharacteristicUuidString(String characteristicIdString) {
         return uuidMatches(characteristicIdString, CHARACTERISTIC_ECHO_STRING, CHARACTERISTIC_TIME_STRING);
+    }
+
+    // Descriptor
+
+    @Nullable
+    public static BluetoothGattDescriptor findClientConfigurationDescriptor(List<BluetoothGattDescriptor> descriptorList) {
+        for(BluetoothGattDescriptor descriptor : descriptorList) {
+            if (isClientConfigurationDescriptor(descriptor)) {
+                return descriptor;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isClientConfigurationDescriptor(BluetoothGattDescriptor descriptor) {
+        if (descriptor == null) {
+            return false;
+        }
+        UUID uuid = descriptor.getUuid();
+        String uuidSubstring = uuid.toString().substring(4, 8);
+        return uuidMatches(uuidSubstring, CLIENT_CONFIGURATION_DESCRIPTOR_SHORT_ID);
     }
 
     // Service

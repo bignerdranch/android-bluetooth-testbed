@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
@@ -233,7 +234,7 @@ public class ClientActivity extends AppCompatActivity {
     }
 
     private void disconnectGattServer() {
-        log("Closing lock connection");
+        log("Closing Gatt connection");
         clearLogs();
         mConnected = false;
         mEchoInitialized = false;
@@ -311,8 +312,10 @@ public class ClientActivity extends AppCompatActivity {
                 log("Characteristic read successfully");
                 readCharacteristic(characteristic);
             } else {
-                logError("Characteristic write unsuccessful, status: " + status);
-                disconnectGattServer();
+                logError("Characteristic read unsuccessful, status: " + status);
+                // Trying to read from the Time Characteristic? It doesnt have the property or permissions
+                // set to allow this. Normally this would be an error and you would want to:
+                // disconnectGattServer();
             }
         }
 
@@ -321,6 +324,17 @@ public class ClientActivity extends AppCompatActivity {
             super.onCharacteristicChanged(gatt, characteristic);
             log("Characteristic changed, " + characteristic.getUuid().toString());
             readCharacteristic(characteristic);
+        }
+
+
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                log("Descriptor written successfully: " + descriptor.getUuid().toString());
+                mTimeInitialized = true;
+            } else {
+                logError("Descriptor write unsuccessful: " + descriptor.getUuid().toString());
+            }
         }
     };
 
@@ -331,22 +345,31 @@ public class ClientActivity extends AppCompatActivity {
             if (BluetoothUtils.isEchoCharacteristic(characteristic)) {
                 mEchoInitialized = true;
             } else if (BluetoothUtils.isTimeCharacteristic(characteristic)) {
-                mTimeInitialized = true;
+                enableCharacteristicConfigurationDescriptor(gatt, characteristic);
             }
         } else {
             logError("Characteristic notification set failure for " + characteristic.getUuid().toString());
         }
+    }
 
-        // If there are notification descriptors, they should be enabled here
-        // The above booleans should be set later in onDescriptorWrite on BluetoothGatt.GATT_SUCCESS
-        // disconnectGattServer() for any other status
-        // See https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-        /*
-            List<BluetoothGattDescriptor> descriptorList = characteristic.getDescriptors();
-            BluetoothGattDescriptor descriptor = BluetoothUtils.findNotificationDescriptor(descriptorList);
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            boolean descriptorWriteInitiated = gatt.writeDescriptor(descriptor);
-        */
+    // Sometimes the Characteristic does not have permissions, and instead its Descriptor holds them
+    // See https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
+    private void enableCharacteristicConfigurationDescriptor(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+
+        List<BluetoothGattDescriptor> descriptorList = characteristic.getDescriptors();
+        BluetoothGattDescriptor descriptor = BluetoothUtils.findClientConfigurationDescriptor(descriptorList);
+        if (descriptor == null) {
+            logError("Unable to find Characteristic Configuration Descriptor");
+            return;
+        }
+
+        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+        boolean descriptorWriteInitiated = gatt.writeDescriptor(descriptor);
+        if (descriptorWriteInitiated) {
+            log("Characteristic Configuration Descriptor write initiated: " + descriptor.getUuid().toString());
+        } else {
+            logError("Characteristic Configuration Descriptor write failed to initiate: " + descriptor.getUuid().toString());
+        }
     }
 
     // Messaging
@@ -422,6 +445,6 @@ public class ClientActivity extends AppCompatActivity {
     }
 
     private void clearLogs() {
-        mBinding.viewClientLog.logTextView.setText("");
+        mLogHandler.post(() -> mBinding.viewClientLog.logTextView.setText(""));
     }
 }
