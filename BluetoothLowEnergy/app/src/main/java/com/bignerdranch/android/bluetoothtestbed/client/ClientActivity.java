@@ -5,11 +5,8 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
@@ -41,7 +38,7 @@ import java.util.Map;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SCAN_PERIOD;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID;
 
-public class ClientActivity extends AppCompatActivity {
+public class ClientActivity extends AppCompatActivity implements GattClientActionListener {
 
     private static final String TAG = "ClientActivity";
 
@@ -191,7 +188,7 @@ public class ClientActivity extends AppCompatActivity {
 
     private void requestLocationPermission() {
         requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_FINE_LOCATION);
-        log("Requested user enables Location. Try starting the scan again.");
+        log("Requested user enable Location. Try starting the scan again.");
     }
 
     private class BtleScanCallback extends ScanCallback {
@@ -230,146 +227,8 @@ public class ClientActivity extends AppCompatActivity {
 
     private void connectDevice(BluetoothDevice device) {
         log("Connecting to " + device.getAddress());
-        mGatt = device.connectGatt(this, false, mGattCallback);
-    }
-
-    private void disconnectGattServer() {
-        log("Closing Gatt connection");
-        clearLogs();
-        mConnected = false;
-        mEchoInitialized = false;
-        mTimeInitialized = false;
-        if (mGatt != null) {
-            mGatt.disconnect();
-            mGatt.close();
-        }
-    }
-
-    private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
-        @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            super.onConnectionStateChange(gatt, status, newState);
-            log("onConnectionStateChange newState: " + newState);
-
-            if (status == BluetoothGatt.GATT_FAILURE) {
-                logError("Connection Gatt failure status " + status);
-                disconnectGattServer();
-                return;
-            } else if (status != BluetoothGatt.GATT_SUCCESS) {
-                // handle anything not SUCCESS as failure
-                logError("Connection not GATT sucess status " + status);
-                disconnectGattServer();
-                return;
-            }
-
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                log("Connected to device " + gatt.getDevice().getAddress());
-                mConnected = true;
-                gatt.discoverServices();
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                log("Disconnected from device");
-                disconnectGattServer();
-            }
-        }
-
-        @Override
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            super.onServicesDiscovered(gatt, status);
-
-            if (status != BluetoothGatt.GATT_SUCCESS) {
-                log("Device service discovery unsuccessful, status " + status);
-                return;
-            }
-
-            List<BluetoothGattCharacteristic> matchingCharacteristics = BluetoothUtils.findCharacteristics(gatt);
-            if (matchingCharacteristics.isEmpty()) {
-                logError("Unable to find characteristics.");
-                return;
-            }
-
-            log("Initializing: setting write type and enabling notification");
-            for (BluetoothGattCharacteristic characteristic : matchingCharacteristics) {
-                characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-                enableCharacteristicNotification(gatt, characteristic);
-            }
-        }
-
-        @Override
-        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            super.onCharacteristicWrite(gatt, characteristic, status);
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                log("Characteristic written successfully");
-            } else {
-                logError("Characteristic write unsuccessful, status: " + status);
-                disconnectGattServer();
-            }
-        }
-
-        @Override
-        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            super.onCharacteristicRead(gatt, characteristic, status);
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                log("Characteristic read successfully");
-                readCharacteristic(characteristic);
-            } else {
-                logError("Characteristic read unsuccessful, status: " + status);
-                // Trying to read from the Time Characteristic? It doesnt have the property or permissions
-                // set to allow this. Normally this would be an error and you would want to:
-                // disconnectGattServer();
-            }
-        }
-
-        @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-            super.onCharacteristicChanged(gatt, characteristic);
-            log("Characteristic changed, " + characteristic.getUuid().toString());
-            readCharacteristic(characteristic);
-        }
-
-
-        @Override
-        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                log("Descriptor written successfully: " + descriptor.getUuid().toString());
-                mTimeInitialized = true;
-            } else {
-                logError("Descriptor write unsuccessful: " + descriptor.getUuid().toString());
-            }
-        }
-    };
-
-    private void enableCharacteristicNotification(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-        boolean characteristicWriteSuccess = gatt.setCharacteristicNotification(characteristic, true);
-        if (characteristicWriteSuccess) {
-            log("Characteristic notification set successfully for " + characteristic.getUuid().toString());
-            if (BluetoothUtils.isEchoCharacteristic(characteristic)) {
-                mEchoInitialized = true;
-            } else if (BluetoothUtils.isTimeCharacteristic(characteristic)) {
-                enableCharacteristicConfigurationDescriptor(gatt, characteristic);
-            }
-        } else {
-            logError("Characteristic notification set failure for " + characteristic.getUuid().toString());
-        }
-    }
-
-    // Sometimes the Characteristic does not have permissions, and instead its Descriptor holds them
-    // See https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-    private void enableCharacteristicConfigurationDescriptor(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-
-        List<BluetoothGattDescriptor> descriptorList = characteristic.getDescriptors();
-        BluetoothGattDescriptor descriptor = BluetoothUtils.findClientConfigurationDescriptor(descriptorList);
-        if (descriptor == null) {
-            logError("Unable to find Characteristic Configuration Descriptor");
-            return;
-        }
-
-        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        boolean descriptorWriteInitiated = gatt.writeDescriptor(descriptor);
-        if (descriptorWriteInitiated) {
-            log("Characteristic Configuration Descriptor write initiated: " + descriptor.getUuid().toString());
-        } else {
-            logError("Characteristic Configuration Descriptor write failed to initiate: " + descriptor.getUuid().toString());
-        }
+        GattClientCallback gattClientCallback = new GattClientCallback(this);
+        mGatt = device.connectGatt(this, false, gattClientCallback);
     }
 
     // Messaging
@@ -404,18 +263,6 @@ public class ClientActivity extends AppCompatActivity {
         }
     }
 
-    private void readCharacteristic(BluetoothGattCharacteristic characteristic) {
-        byte[] messageBytes = characteristic.getValue();
-        log("Read: " + StringUtils.byteArrayInHexFormat(messageBytes));
-        String message = StringUtils.stringFromBytes(messageBytes);
-        if (message == null) {
-            logError("Unable to convert bytes to string");
-            return;
-        }
-
-        log("Received message: " + message);
-    }
-
     private void requestTimestamp() {
         if (!mConnected || !mTimeInitialized) {
             return;
@@ -432,7 +279,14 @@ public class ClientActivity extends AppCompatActivity {
 
     // Logging
 
-    private void log(String msg) {
+    private void clearLogs() {
+        mLogHandler.post(() -> mBinding.viewClientLog.logTextView.setText(""));
+    }
+
+    // Gat Client Action Listener
+
+    @Override
+    public void log(String msg) {
         Log.d(TAG, msg);
         mLogHandler.post(() -> {
             mBinding.viewClientLog.logTextView.append(msg + "\n");
@@ -440,11 +294,36 @@ public class ClientActivity extends AppCompatActivity {
         });
     }
 
-    private void logError(String msg) {
+    @Override
+    public void logError(String msg) {
         log("Error: " + msg);
     }
 
-    private void clearLogs() {
-        mLogHandler.post(() -> mBinding.viewClientLog.logTextView.setText(""));
+    @Override
+    public void setConnected(boolean connected) {
+        mConnected = connected;
+    }
+
+    @Override
+    public void initializeTime() {
+        mTimeInitialized = true;
+    }
+
+    @Override
+    public void initializeEcho() {
+        mEchoInitialized = true;
+    }
+
+    @Override
+    public void disconnectGattServer() {
+        log("Closing Gatt connection");
+        clearLogs();
+        mConnected = false;
+        mEchoInitialized = false;
+        mTimeInitialized = false;
+        if (mGatt != null) {
+            mGatt.disconnect();
+            mGatt.close();
+        }
     }
 }

@@ -94,6 +94,16 @@ public class BluetoothUtils {
         return uuidMatches(characteristicIdString, CHARACTERISTIC_ECHO_STRING, CHARACTERISTIC_TIME_STRING);
     }
 
+    public static boolean requiresResponse(BluetoothGattCharacteristic characteristic) {
+        return (characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)
+                != BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE;
+    }
+
+    public static boolean requiresConfirmation(BluetoothGattCharacteristic characteristic) {
+        return (characteristic.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE)
+                == BluetoothGattCharacteristic.PROPERTY_INDICATE;
+    }
+
     // Descriptor
 
     @Nullable
