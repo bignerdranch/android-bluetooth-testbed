@@ -5,8 +5,9 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
@@ -27,8 +28,6 @@ import android.view.View;
 import com.bignerdranch.android.bluetoothtestbed.R;
 import com.bignerdranch.android.bluetoothtestbed.databinding.ActivityClientBinding;
 import com.bignerdranch.android.bluetoothtestbed.databinding.ViewGattServerBinding;
-import com.bignerdranch.android.bluetoothtestbed.util.BluetoothUtils;
-import com.bignerdranch.android.bluetoothtestbed.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,7 +37,7 @@ import java.util.Map;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SCAN_PERIOD;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID;
 
-public class ClientActivity extends AppCompatActivity implements GattClientActionListener {
+public class ClientActivity extends AppCompatActivity {
 
     private static final String TAG = "ClientActivity";
 
@@ -53,8 +52,6 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
     private Map<String, BluetoothDevice> mScanResults;
 
     private boolean mConnected;
-    private boolean mTimeInitialized;
-    private boolean mEchoInitialized;
     private BluetoothAdapter mBluetoothAdapter;
     private BluetoothLeScanner mBluetoothLeScanner;
     private ScanCallback mScanCallback;
@@ -78,8 +75,6 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
         mBinding.clientDeviceInfoTextView.setText(deviceInfo);
         mBinding.startScanningButton.setOnClickListener(v -> startScan());
         mBinding.stopScanningButton.setOnClickListener(v -> stopScan());
-        mBinding.sendMessageButton.setOnClickListener(v -> sendMessage());
-        mBinding.requestTimestampButton.setOnClickListener(v -> requestTimestamp());
         mBinding.disconnectButton.setOnClickListener(v -> disconnectGattServer());
         mBinding.viewClientLog.clearLogButton.setOnClickListener(v -> clearLogs());
     }
@@ -227,54 +222,36 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
 
     private void connectDevice(BluetoothDevice device) {
         log("Connecting to " + device.getAddress());
-        GattClientCallback gattClientCallback = new GattClientCallback(this);
+        GattClientCallback gattClientCallback = new GattClientCallback();
         mGatt = device.connectGatt(this, false, gattClientCallback);
     }
 
-    // Messaging
+    private class GattClientCallback extends BluetoothGattCallback {
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            super.onConnectionStateChange(gatt, status, newState);
+            log("onConnectionStateChange newState: " + newState);
 
-    private void sendMessage() {
-        if (!mConnected || !mEchoInitialized) {
-            return;
+            if (status == BluetoothGatt.GATT_FAILURE) {
+                logError("Connection Gatt failure status " + status);
+                disconnectGattServer();
+                return;
+            } else if (status != BluetoothGatt.GATT_SUCCESS) {
+                // handle anything not SUCCESS as failure
+                logError("Connection not GATT sucess status " + status);
+                disconnectGattServer();
+                return;
+            }
+
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                log("Connected to device " + gatt.getDevice().getAddress());
+                setConnected(true);
+                gatt.discoverServices();
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                log("Disconnected from device");
+                disconnectGattServer();
+            }
         }
-
-        BluetoothGattCharacteristic characteristic = BluetoothUtils.findEchoCharacteristic(mGatt);
-        if (characteristic == null) {
-            logError("Unable to find echo characteristic.");
-            disconnectGattServer();
-            return;
-        }
-
-        String message = mBinding.messageEditText.getText().toString();
-        log("Sending message: " + message);
-
-        byte[] messageBytes = StringUtils.bytesFromString(message);
-        if (messageBytes.length == 0) {
-            logError("Unable to convert message to bytes");
-            return;
-        }
-
-        characteristic.setValue(messageBytes);
-        boolean success = mGatt.writeCharacteristic(characteristic);
-        if (success) {
-            log("Wrote: " + StringUtils.byteArrayInHexFormat(messageBytes));
-        } else {
-            logError("Failed to write data");
-        }
-    }
-
-    private void requestTimestamp() {
-        if (!mConnected || !mTimeInitialized) {
-            return;
-        }
-
-        BluetoothGattCharacteristic characteristic = BluetoothUtils.findTimeCharacteristic(mGatt);
-        if (characteristic == null) {
-            logError("Unable to find time charactaristic");
-            return;
-        }
-
-        mGatt.readCharacteristic(characteristic);
     }
 
     // Logging
@@ -283,9 +260,8 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
         mLogHandler.post(() -> mBinding.viewClientLog.logTextView.setText(""));
     }
 
-    // Gat Client Action Listener
+    // Gat Client Actions
 
-    @Override
     public void log(String msg) {
         Log.d(TAG, msg);
         mLogHandler.post(() -> {
@@ -294,33 +270,18 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
         });
     }
 
-    @Override
     public void logError(String msg) {
         log("Error: " + msg);
     }
 
-    @Override
     public void setConnected(boolean connected) {
         mConnected = connected;
     }
 
-    @Override
-    public void initializeTime() {
-        mTimeInitialized = true;
-    }
-
-    @Override
-    public void initializeEcho() {
-        mEchoInitialized = true;
-    }
-
-    @Override
     public void disconnectGattServer() {
         log("Closing Gatt connection");
         clearLogs();
         mConnected = false;
-        mEchoInitialized = false;
-        mTimeInitialized = false;
         if (mGatt != null) {
             mGatt.disconnect();
             mGatt.close();

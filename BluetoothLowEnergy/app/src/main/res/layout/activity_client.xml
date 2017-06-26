@@ -76,31 +76,6 @@
             android:text="@string/messages"
             android:textAlignment="center"/>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/message_edit_text"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"/>
-
-            <Button
-                android:id="@+id/send_message_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/send"/>
-
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/request_timestamp_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/request_timestamp"/>
-
         <include
             android:id="@+id/view_client_log"
             layout="@layout/view_log"/>
