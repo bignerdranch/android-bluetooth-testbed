@@ -132,7 +132,7 @@ public class ServerActivity extends AppCompatActivity implements GattServerActio
         BluetoothGattService service = new BluetoothGattService(SERVICE_UUID,
                 BluetoothGattService.SERVICE_TYPE_PRIMARY);
 
-        // Read characteristic with notifications
+        // Write characteristic
         BluetoothGattCharacteristic writeCharacteristic = new BluetoothGattCharacteristic(
                 CHARACTERISTIC_ECHO_UUID,
                 BluetoothGattCharacteristic.PROPERTY_WRITE,
@@ -140,7 +140,7 @@ public class ServerActivity extends AppCompatActivity implements GattServerActio
 //                        | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                 BluetoothGattCharacteristic.PERMISSION_WRITE);
 
-        // Read only with notifications
+        // Characteristic with Descriptor
         BluetoothGattCharacteristic notifyCharacteristic = new BluetoothGattCharacteristic(
                 CHARACTERISTIC_TIME_UUID,
                 // Somehow this is not necessary, the client can still enable notifications
