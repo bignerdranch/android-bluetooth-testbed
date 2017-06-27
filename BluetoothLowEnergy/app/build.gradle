@@ -1,5 +1,4 @@
 apply plugin: 'com.android.application'
-apply plugin: 'me.tatarka.retrolambda'
 
 android {
     compileSdkVersion 25
@@ -25,10 +24,6 @@ android {
         targetCompatibility 1.8
         sourceCompatibility 1.8
     }
-}
-
-retrolambda {
-    jvmArgs '-noverify'
 }
 
 dependencies {
