@@ -198,6 +198,10 @@ public class ServerActivity extends AppCompatActivity {
                     + ", new value: " + StringUtils.byteArrayInHexFormat(value));
 
             characteristic.setValue(value);
+            boolean confirm = BluetoothUtils.requiresConfirmation(characteristic);
+            for(BluetoothDevice device : mDevices) {
+                mGattServer.notifyCharacteristicChanged(device, characteristic, confirm);
+            }
         });
     }
 
@@ -224,9 +228,7 @@ public class ServerActivity extends AppCompatActivity {
 
     public void removeDevice(BluetoothDevice device) {
         log("Deviced removed: " + device.getAddress());
-        mHandler.post(() -> {
-            mDevices.remove(device);
-        });
+        mHandler.post(() -> mDevices.remove(device));
     }
 
     public void sendResponse(BluetoothDevice device, int requestId, int status, int offset, byte[] value) {
