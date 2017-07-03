@@ -3,11 +3,14 @@ package com.bignerdranch.android.bluetoothtestbed.server;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattServer;
+import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
@@ -26,6 +29,7 @@ import android.view.View;
 import com.bignerdranch.android.bluetoothtestbed.R;
 import com.bignerdranch.android.bluetoothtestbed.databinding.ActivityServerBinding;
 import com.bignerdranch.android.bluetoothtestbed.util.BluetoothUtils;
+import com.bignerdranch.android.bluetoothtestbed.util.ByteUtils;
 import com.bignerdranch.android.bluetoothtestbed.util.StringUtils;
 
 import java.text.SimpleDateFormat;
@@ -41,7 +45,7 @@ import static com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC
 import static com.bignerdranch.android.bluetoothtestbed.Constants.CLIENT_CONFIGURATION_DESCRIPTOR_UUID;
 import static com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID;
 
-public class ServerActivity extends AppCompatActivity implements GattServerActionListener {
+public class ServerActivity extends AppCompatActivity {
 
     private static final String TAG = "ServerActivity";
 
@@ -106,7 +110,7 @@ public class ServerActivity extends AppCompatActivity implements GattServerActio
         }
 
         mBluetoothLeAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
-        GattServerCallback gattServerCallback = new GattServerCallback(this);
+        GattServerCallback gattServerCallback = new GattServerCallback();
         mGattServer = mBluetoothManager.openGattServer(this, gattServerCallback);
 
         @SuppressLint("HardwareIds")
@@ -277,9 +281,8 @@ public class ServerActivity extends AppCompatActivity implements GattServerActio
         mLogHandler.post(() -> mBinding.viewServerLog.logTextView.setText(""));
     }
 
-    // Gatt Server Action Listener
+    // Gatt Server Actions
 
-    @Override
     public void log(String msg) {
         Log.d(TAG, msg);
         mLogHandler.post(() -> {
@@ -288,13 +291,11 @@ public class ServerActivity extends AppCompatActivity implements GattServerActio
         });
     }
 
-    @Override
     public void addDevice(BluetoothDevice device) {
         log("Deviced added: " + device.getAddress());
         mHandler.post(() -> mDevices.add(device));
     }
 
-    @Override
     public void removeDevice(BluetoothDevice device) {
         log("Deviced removed: " + device.getAddress());
         mHandler.post(() -> {
@@ -304,19 +305,121 @@ public class ServerActivity extends AppCompatActivity implements GattServerActio
         });
     }
 
-    @Override
     public void addClientConfiguration(BluetoothDevice device, byte[] value) {
         String deviceAddress = device.getAddress();
         mClientConfigurations.put(deviceAddress, value);
     }
 
-    @Override
     public void sendResponse(BluetoothDevice device, int requestId, int status, int offset, byte[] value) {
         mGattServer.sendResponse(device, requestId, status, 0, null);
     }
 
-    @Override
     public void notifyCharacteristicEcho(byte[] value) {
         notifyCharacteristic(value, CHARACTERISTIC_ECHO_UUID);
+    }
+
+    // Gatt Callback
+
+    public class GattServerCallback extends BluetoothGattServerCallback {
+
+        @Override
+        public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
+            super.onConnectionStateChange(device, status, newState);
+            log("onConnectionStateChange " + device.getAddress()
+                    + "\nstatus " + status
+                    + "\nnewState " + newState);
+
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                addDevice(device);
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                removeDevice(device);
+            }
+        }
+
+        // The Gatt will reject Characteristic Read requests that do not have the permission set,
+        // so there is no need to check inside the callback
+        @Override
+        public void onCharacteristicReadRequest(BluetoothDevice device,
+                                                int requestId,
+                                                int offset,
+                                                BluetoothGattCharacteristic characteristic) {
+            super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
+
+            log("onCharacteristicReadRequest " + characteristic.getUuid().toString());
+
+            if (BluetoothUtils.requiresResponse(characteristic)) {
+                // Unknown read characteristic requiring response, send failure
+                sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
+            }
+            // Not one of our characteristics or has NO_RESPONSE property set
+        }
+
+        // The Gatt will reject Characteristic Write requests that do not have the permission set,
+        // so there is no need to check inside the callback
+        @Override
+        public void onCharacteristicWriteRequest(BluetoothDevice device,
+                                                 int requestId,
+                                                 BluetoothGattCharacteristic characteristic,
+                                                 boolean preparedWrite,
+                                                 boolean responseNeeded,
+                                                 int offset,
+                                                 byte[] value) {
+            super.onCharacteristicWriteRequest(device,
+                    requestId,
+                    characteristic,
+                    preparedWrite,
+                    responseNeeded,
+                    offset,
+                    value);
+            log("onCharacteristicWriteRequest" + characteristic.getUuid().toString()
+                    + "\nReceived: " + StringUtils.byteArrayInHexFormat(value));
+
+            if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.getUuid())) {
+                sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
+
+                // Reverse message to differentiate original message & response
+                byte[] response = ByteUtils.reverse(value);
+                characteristic.setValue(response);
+                log("Sending: " + StringUtils.byteArrayInHexFormat(response));
+                notifyCharacteristicEcho(response);
+            }
+        }
+
+        // The Gatt will reject Descriptor Read requests that do not have the permission set,
+        // so there is no need to check inside the callback
+        @Override
+        public void onDescriptorReadRequest(BluetoothDevice device,
+                                            int requestId,
+                                            int offset,
+                                            BluetoothGattDescriptor descriptor) {
+            super.onDescriptorReadRequest(device, requestId, offset, descriptor);
+            log("onDescriptorReadRequest" + descriptor.getUuid().toString());
+        }
+
+        // The Gatt will reject Descriptor Write requests that do not have the permission set,
+        // so there is no need to check inside the callback
+        @Override
+        public void onDescriptorWriteRequest(BluetoothDevice device,
+                                             int requestId,
+                                             BluetoothGattDescriptor descriptor,
+                                             boolean preparedWrite,
+                                             boolean responseNeeded,
+                                             int offset,
+                                             byte[] value) {
+            super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value);
+            log("onDescriptorWriteRequest: " + descriptor.getUuid().toString()
+                    + "\nvalue: " + StringUtils.byteArrayInHexFormat(value));
+
+            if (CLIENT_CONFIGURATION_DESCRIPTOR_UUID.equals(descriptor.getUuid())) {
+                addClientConfiguration(device, value);
+                sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
+            }
+        }
+
+        @Override
+        public void onNotificationSent(BluetoothDevice device, int status) {
+            super.onNotificationSent(device, status);
+            log("onNotificationSent");
+        }
     }
 }
