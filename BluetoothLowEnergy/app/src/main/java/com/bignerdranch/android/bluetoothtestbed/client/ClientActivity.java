@@ -186,72 +186,12 @@ public class ClientActivity extends AppCompatActivity {
         log("Requested user enable Location. Try starting the scan again.");
     }
 
-    private class BtleScanCallback extends ScanCallback {
-
-        private Map<String, BluetoothDevice> mScanResults;
-
-        BtleScanCallback(Map<String, BluetoothDevice> scanResults) {
-            mScanResults = scanResults;
-        }
-
-        @Override
-        public void onScanResult(int callbackType, ScanResult result) {
-            addScanResult(result);
-        }
-
-        @Override
-        public void onBatchScanResults(List<ScanResult> results) {
-            for (ScanResult result : results) {
-                addScanResult(result);
-            }
-        }
-
-        @Override
-        public void onScanFailed(int errorCode) {
-            logError("BLE Scan Failed with code " + errorCode);
-        }
-
-        private void addScanResult(ScanResult result) {
-            BluetoothDevice device = result.getDevice();
-            String deviceAddress = device.getAddress();
-            mScanResults.put(deviceAddress, device);
-        }
-    }
-
     // Gatt connection
 
     private void connectDevice(BluetoothDevice device) {
         log("Connecting to " + device.getAddress());
         GattClientCallback gattClientCallback = new GattClientCallback();
         mGatt = device.connectGatt(this, false, gattClientCallback);
-    }
-
-    private class GattClientCallback extends BluetoothGattCallback {
-        @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            super.onConnectionStateChange(gatt, status, newState);
-            log("onConnectionStateChange newState: " + newState);
-
-            if (status == BluetoothGatt.GATT_FAILURE) {
-                logError("Connection Gatt failure status " + status);
-                disconnectGattServer();
-                return;
-            } else if (status != BluetoothGatt.GATT_SUCCESS) {
-                // handle anything not SUCCESS as failure
-                logError("Connection not GATT sucess status " + status);
-                disconnectGattServer();
-                return;
-            }
-
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                log("Connected to device " + gatt.getDevice().getAddress());
-                setConnected(true);
-                gatt.discoverServices();
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                log("Disconnected from device");
-                disconnectGattServer();
-            }
-        }
     }
 
     // Logging
@@ -285,6 +225,68 @@ public class ClientActivity extends AppCompatActivity {
         if (mGatt != null) {
             mGatt.disconnect();
             mGatt.close();
+        }
+    }
+
+    // Callbacks
+
+    private class BtleScanCallback extends ScanCallback {
+
+        private Map<String, BluetoothDevice> mScanResults;
+
+        BtleScanCallback(Map<String, BluetoothDevice> scanResults) {
+            mScanResults = scanResults;
+        }
+
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            addScanResult(result);
+        }
+
+        @Override
+        public void onBatchScanResults(List<ScanResult> results) {
+            for (ScanResult result : results) {
+                addScanResult(result);
+            }
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            logError("BLE Scan Failed with code " + errorCode);
+        }
+
+        private void addScanResult(ScanResult result) {
+            BluetoothDevice device = result.getDevice();
+            String deviceAddress = device.getAddress();
+            mScanResults.put(deviceAddress, device);
+        }
+    }
+
+    private class GattClientCallback extends BluetoothGattCallback {
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            super.onConnectionStateChange(gatt, status, newState);
+            log("onConnectionStateChange newState: " + newState);
+
+            if (status == BluetoothGatt.GATT_FAILURE) {
+                logError("Connection Gatt failure status " + status);
+                disconnectGattServer();
+                return;
+            } else if (status != BluetoothGatt.GATT_SUCCESS) {
+                // handle anything not SUCCESS as failure
+                logError("Connection not GATT sucess status " + status);
+                disconnectGattServer();
+                return;
+            }
+
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                log("Connected to device " + gatt.getDevice().getAddress());
+                setConnected(true);
+                gatt.discoverServices();
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                log("Disconnected from device");
+                disconnectGattServer();
+            }
         }
     }
 }

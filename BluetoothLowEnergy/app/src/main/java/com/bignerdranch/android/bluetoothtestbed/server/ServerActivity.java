@@ -132,20 +132,6 @@ public class ServerActivity extends AppCompatActivity {
         startAdvertising();
     }
 
-    private class GattServerCallback extends BluetoothGattServerCallback {
-        @Override
-        public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
-            super.onConnectionStateChange(device, status, newState);
-            log("onConnectionStateChange " + device.getAddress() + "\nstatus " + status + "\nnewState " + newState);
-
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                addDevice(device);
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                removeDevice(device);
-            }
-        }
-    }
-
     // Advertising
 
     private void startAdvertising() {
@@ -211,5 +197,21 @@ public class ServerActivity extends AppCompatActivity {
         mHandler.post(() -> {
             mDevices.remove(device);
         });
+    }
+
+    // Gatt Callback
+
+    private class GattServerCallback extends BluetoothGattServerCallback {
+        @Override
+        public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
+            super.onConnectionStateChange(device, status, newState);
+            log("onConnectionStateChange " + device.getAddress() + "\nstatus " + status + "\nnewState " + newState);
+
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                addDevice(device);
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                removeDevice(device);
+            }
+        }
     }
 }
