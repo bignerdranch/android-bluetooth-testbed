@@ -79,7 +79,6 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
         mBinding.startScanningButton.setOnClickListener(v -> startScan());
         mBinding.stopScanningButton.setOnClickListener(v -> stopScan());
         mBinding.sendMessageButton.setOnClickListener(v -> sendMessage());
-        mBinding.requestTimestampButton.setOnClickListener(v -> requestTimestamp());
         mBinding.disconnectButton.setOnClickListener(v -> disconnectGattServer());
         mBinding.viewClientLog.clearLogButton.setOnClickListener(v -> clearLogs());
     }
