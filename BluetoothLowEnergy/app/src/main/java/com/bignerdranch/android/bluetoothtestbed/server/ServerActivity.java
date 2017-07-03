@@ -126,9 +126,9 @@ public class ServerActivity extends AppCompatActivity {
 
         // Write characteristic
         BluetoothGattCharacteristic writeCharacteristic = new BluetoothGattCharacteristic(CHARACTERISTIC_ECHO_UUID,
-                BluetoothGattCharacteristic.PROPERTY_WRITE
+                BluetoothGattCharacteristic.PROPERTY_WRITE,
                 // Somehow this is not necessary, the client can still enable notifications
-                        | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+//                        | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                 BluetoothGattCharacteristic.PERMISSION_WRITE);
 
         service.addCharacteristic(writeCharacteristic);
