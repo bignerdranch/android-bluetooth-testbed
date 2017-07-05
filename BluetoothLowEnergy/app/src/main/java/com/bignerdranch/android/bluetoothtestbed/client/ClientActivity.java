@@ -311,7 +311,7 @@ public class ClientActivity extends AppCompatActivity {
         }
     }
 
-    public class GattClientCallback extends BluetoothGattCallback {
+    private class GattClientCallback extends BluetoothGattCallback {
 
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
