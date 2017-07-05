@@ -233,20 +233,6 @@ public class ClientActivity extends AppCompatActivity {
         }
     }
 
-    private void requestTimestamp() {
-        if (!mConnected || !mTimeInitialized) {
-            return;
-        }
-
-        BluetoothGattCharacteristic characteristic = BluetoothUtils.findTimeCharacteristic(mGatt);
-        if (characteristic == null) {
-            logError("Unable to find time charactaristic");
-            return;
-        }
-
-        mGatt.readCharacteristic(characteristic);
-    }
-
     // Logging
 
     private void clearLogs() {

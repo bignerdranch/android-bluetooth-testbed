@@ -154,7 +154,8 @@ public class ServerActivity extends AppCompatActivity {
 
         BluetoothGattDescriptor clientConfigurationDescriptor = new BluetoothGattDescriptor(
                 CLIENT_CONFIGURATION_DESCRIPTOR_UUID,
-                BluetoothGattDescriptor.PERMISSION_READ | BluetoothGattDescriptor.PERMISSION_WRITE);
+                BluetoothGattDescriptor.PERMISSION_READ
+                        | BluetoothGattDescriptor.PERMISSION_WRITE);
         clientConfigurationDescriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
 
         notifyCharacteristic.addDescriptor(clientConfigurationDescriptor);
