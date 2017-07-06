@@ -227,19 +227,21 @@ public class ServerActivity extends AppCompatActivity {
     }
 
     private void notifyCharacteristic(byte[] value, UUID uuid) {
-        BluetoothGattService service = mGattServer.getService(SERVICE_UUID);
-        BluetoothGattCharacteristic characteristic = service.getCharacteristic(uuid);
-        log("Notifying characteristic " + characteristic.getUuid().toString()
-                + ", new value: " + StringUtils.byteArrayInHexFormat(value));
+        mHandler.post(() -> {
+            BluetoothGattService service = mGattServer.getService(SERVICE_UUID);
+            BluetoothGattCharacteristic characteristic = service.getCharacteristic(uuid);
+            log("Notifying characteristic " + characteristic.getUuid()
+                    .toString() + ", new value: " + StringUtils.byteArrayInHexFormat(value));
 
-        characteristic.setValue(value);
-        // Indications require confirmation, notifications do not
-        boolean confirm = BluetoothUtils.requiresConfirmation(characteristic);
-        for (BluetoothDevice device : mDevices) {
-            if (clientEnabledNotifications(device, characteristic)) {
-                mGattServer.notifyCharacteristicChanged(device, characteristic, confirm);
+            characteristic.setValue(value);
+            // Indications require confirmation, notifications do not
+            boolean confirm = BluetoothUtils.requiresConfirmation(characteristic);
+            for (BluetoothDevice device : mDevices) {
+                if (clientEnabledNotifications(device, characteristic)) {
+                    mGattServer.notifyCharacteristicChanged(device, characteristic, confirm);
+                }
             }
-        }
+        });
     }
 
     private boolean clientEnabledNotifications(BluetoothDevice device, BluetoothGattCharacteristic characteristic) {
