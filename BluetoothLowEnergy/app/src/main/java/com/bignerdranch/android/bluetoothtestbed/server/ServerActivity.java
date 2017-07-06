@@ -269,7 +269,10 @@ public class ServerActivity extends AppCompatActivity {
         // The Gatt will reject Characteristic Read requests that do not have the permission set,
         // so there is no need to check inside the callback
         @Override
-        public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+        public void onCharacteristicReadRequest(BluetoothDevice device,
+                                                int requestId,
+                                                int offset,
+                                                BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
 
             log("onCharacteristicReadRequest "
@@ -285,7 +288,13 @@ public class ServerActivity extends AppCompatActivity {
         // The Gatt will reject Characteristic Write requests that do not have the permission set,
         // so there is no need to check inside the callback
         @Override
-        public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+        public void onCharacteristicWriteRequest(BluetoothDevice device,
+                                                 int requestId,
+                                                 BluetoothGattCharacteristic characteristic,
+                                                 boolean preparedWrite,
+                                                 boolean responseNeeded,
+                                                 int offset,
+                                                 byte[] value) {
             super.onCharacteristicWriteRequest(device,
                     requestId,
                     characteristic,
