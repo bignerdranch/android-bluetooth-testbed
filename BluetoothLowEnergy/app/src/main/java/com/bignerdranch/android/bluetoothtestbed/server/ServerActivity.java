@@ -230,8 +230,8 @@ public class ServerActivity extends AppCompatActivity {
         mHandler.post(() -> {
             BluetoothGattService service = mGattServer.getService(SERVICE_UUID);
             BluetoothGattCharacteristic characteristic = service.getCharacteristic(uuid);
-            log("Notifying characteristic " + characteristic.getUuid()
-                    .toString() + ", new value: " + StringUtils.byteArrayInHexFormat(value));
+            log("Notifying characteristic " + characteristic.getUuid().toString()
+                    + ", new value: " + StringUtils.byteArrayInHexFormat(value));
 
             characteristic.setValue(value);
             // Indications require confirmation, notifications do not
