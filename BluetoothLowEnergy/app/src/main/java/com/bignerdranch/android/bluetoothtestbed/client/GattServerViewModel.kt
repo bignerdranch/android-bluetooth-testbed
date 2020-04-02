@@ -6,8 +6,5 @@ import androidx.databinding.Bindable
 
 class GattServerViewModel(private val mBluetoothDevice: BluetoothDevice?) : BaseObservable() {
     @get:Bindable val serverName: String
-        get() = if (mBluetoothDevice == null) {
-            ""
-        } else mBluetoothDevice.address
-
+        get() = mBluetoothDevice?.address ?: ""
 }

@@ -27,7 +27,7 @@ import java.util.*
 import kotlin.collections.HashMap
 
 class ClientActivity : AppCompatActivity() {
-    private lateinit var mBinding: ActivityClientBinding
+    private lateinit var binding: ActivityClientBinding
     private var mScanning = false
     private var mHandler: Handler? = null
     private var mLogHandler: Handler? = null
@@ -39,22 +39,26 @@ class ClientActivity : AppCompatActivity() {
     private lateinit var mBluetoothLeScanner: BluetoothLeScanner
     private var mScanCallback: ScanCallback? = null
     private var mGatt: BluetoothGatt? = null
+
     // Lifecycle
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mLogHandler = Handler(Looper.getMainLooper())
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         mBluetoothAdapter = bluetoothManager.adapter
-        mBinding = DataBindingUtil.setContentView(this, R.layout.activity_client)
-        @SuppressLint("HardwareIds") val deviceInfo = ("Device Info"
+        @SuppressLint("HardwareIds")
+        val deviceInfo = ("Device Info"
                 + "\nName: " + mBluetoothAdapter.name
                 + "\nAddress: " + mBluetoothAdapter.address)
-        mBinding.clientDeviceInfoTextView.text = deviceInfo
-        mBinding.startScanningButton.setOnClickListener { v: View? -> startScan() }
-        mBinding.stopScanningButton.setOnClickListener { v: View? -> stopScan() }
-        mBinding.sendMessageButton.setOnClickListener { v: View? -> sendMessage() }
-        mBinding.disconnectButton.setOnClickListener { v: View? -> disconnectGattServer() }
-        mBinding.viewClientLog.clearLogButton.setOnClickListener { v: View? -> clearLogs() }
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_client)
+        with(binding) {
+            clientDeviceInfoTextView.text = deviceInfo
+            startScanningButton.setOnClickListener { startScan() }
+            stopScanningButton.setOnClickListener { stopScan() }
+            sendMessageButton.setOnClickListener { sendMessage() }
+            disconnectButton.setOnClickListener { disconnectGattServer() }
+            viewClientLog.clearLogButton.setOnClickListener { clearLogs() }
+        }
     }
 
     override fun onResume() {
@@ -72,10 +76,10 @@ class ClientActivity : AppCompatActivity() {
             return
         }
         disconnectGattServer()
-        mBinding!!.serverListContainer.removeAllViews()
+        binding.serverListContainer.removeAllViews()
         mScanResults = HashMap()
         mScanCallback = BtleScanCallback(mScanResults)
-        mBluetoothLeScanner = mBluetoothAdapter!!.bluetoothLeScanner
+        mBluetoothLeScanner = mBluetoothAdapter.bluetoothLeScanner
         // Note: Filtering does not work the same (or at all) on most devices. It also is unable to
 // search for a mask or anything less than a full UUID.
 // Unless the full UUID of the server is known, manual filtering may be necessary.
@@ -96,8 +100,8 @@ class ClientActivity : AppCompatActivity() {
     }
 
     private fun stopScan() {
-        if (mScanning && mBluetoothAdapter != null && mBluetoothAdapter!!.isEnabled && mBluetoothLeScanner != null) {
-            mBluetoothLeScanner!!.stopScan(mScanCallback)
+        if (mScanning && mBluetoothAdapter.isEnabled) {
+            mBluetoothLeScanner.stopScan(mScanCallback)
             scanComplete()
         }
         mScanCallback = null
@@ -107,23 +111,23 @@ class ClientActivity : AppCompatActivity() {
     }
 
     private fun scanComplete() {
-        if (mScanResults!!.isEmpty()) {
+        if (mScanResults.isEmpty()) {
             return
         }
-        for (deviceAddress in mScanResults!!.keys) {
-            val device = mScanResults!![deviceAddress]
+        for (deviceAddress in mScanResults.keys) {
+            val device = mScanResults[deviceAddress]
             val viewModel = GattServerViewModel(device)
             val binding: ViewGattServerBinding = DataBindingUtil.inflate(LayoutInflater.from(this),
                     R.layout.view_gatt_server,
-                    mBinding!!.serverListContainer,
+                    binding.serverListContainer,
                     true)
             binding.viewModel = viewModel
-            binding.connectGattServerButton.setOnClickListener { v: View? -> connectDevice(device) }
+            binding.connectGattServerButton.setOnClickListener { connectDevice(device) }
         }
     }
 
     private fun hasPermissions(): Boolean {
-        if (mBluetoothAdapter == null || !mBluetoothAdapter!!.isEnabled) {
+        if (!mBluetoothAdapter.isEnabled) {
             requestBluetoothEnable()
             return false
         } else if (!hasLocationPermissions()) {
@@ -166,10 +170,10 @@ class ClientActivity : AppCompatActivity() {
             disconnectGattServer()
             return
         }
-        val message = mBinding!!.messageEditText.text.toString()
+        val message = binding.messageEditText.text.toString()
         log("Sending message: $message")
         val messageBytes = StringUtils.bytesFromString(message)
-        if (messageBytes.size == 0) {
+        if (messageBytes.isEmpty()) {
             logError("Unable to convert message to bytes")
             return
         }
@@ -184,15 +188,17 @@ class ClientActivity : AppCompatActivity() {
 
     // Logging
     private fun clearLogs() {
-        mLogHandler!!.post { mBinding!!.viewClientLog.logTextView.text = "" }
+        mLogHandler!!.post { binding!!.viewClientLog.logTextView.text = "" }
     }
 
     // Gat Client Actions
     fun log(msg: String) {
         Log.d(TAG, msg)
         mLogHandler!!.post {
-            mBinding!!.viewClientLog.logTextView.append(msg + "\n")
-            mBinding!!.viewClientLog.logScrollView.post { mBinding!!.viewClientLog.logScrollView.fullScroll(View.FOCUS_DOWN) }
+            with(binding) {
+                viewClientLog.logTextView.append(msg + "\n")
+                viewClientLog.logScrollView.post { viewClientLog.logScrollView.fullScroll(View.FOCUS_DOWN) }
+            }
         }
     }
 
