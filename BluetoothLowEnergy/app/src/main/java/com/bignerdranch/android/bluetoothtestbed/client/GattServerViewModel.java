@@ -1,8 +1,9 @@
 package com.bignerdranch.android.bluetoothtestbed.client;
 
 import android.bluetooth.BluetoothDevice;
-import android.databinding.BaseObservable;
-import android.databinding.Bindable;
+
+import androidx.databinding.BaseObservable;
+import androidx.databinding.Bindable;
 
 public class GattServerViewModel extends BaseObservable {
 

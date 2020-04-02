@@ -4,7 +4,8 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
-import android.support.annotation.Nullable;
+
+import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
