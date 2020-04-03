@@ -209,7 +209,7 @@ class ServerActivity : AppCompatActivity() {
         private get() {
             @SuppressLint("SimpleDateFormat") val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
             val timestamp = dateFormat.format(Date())
-            return StringUtils.bytesFromString(timestamp)
+            return timestamp.toByteArray()
         }
 
     private fun sendTimestamp() {

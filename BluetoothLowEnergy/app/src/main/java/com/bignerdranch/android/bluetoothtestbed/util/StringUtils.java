@@ -39,26 +39,4 @@ public class StringUtils {
 
         return stringBuilder.toString();
     }
-
-    public static byte[] bytesFromString(String string) {
-        byte[] stringBytes = new byte[0];
-        try {
-            stringBytes = string.getBytes("UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            Log.e(TAG, "Failed to convert message string to byte array");
-        }
-
-        return stringBytes;
-    }
-
-    @Nullable
-    public static String stringFromBytes(byte[] bytes) {
-        String byteString = null;
-        try {
-            byteString = new String(bytes, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            Log.e(TAG, "Unable to convert message bytes to string");
-        }
-        return byteString;
-    }
 }

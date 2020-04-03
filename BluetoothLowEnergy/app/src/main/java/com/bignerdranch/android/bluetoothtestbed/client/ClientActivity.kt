@@ -23,33 +23,31 @@ import com.bignerdranch.android.bluetoothtestbed.databinding.ActivityClientBindi
 import com.bignerdranch.android.bluetoothtestbed.databinding.ViewGattServerBinding
 import com.bignerdranch.android.bluetoothtestbed.util.BluetoothUtils
 import com.bignerdranch.android.bluetoothtestbed.util.StringUtils
-import java.util.*
-import kotlin.collections.HashMap
 
 class ClientActivity : AppCompatActivity() {
     private lateinit var binding: ActivityClientBinding
-    private var mScanning = false
-    private var mHandler: Handler? = null
-    private var mLogHandler: Handler? = null
-    private var mScanResults = HashMap<String, BluetoothDevice>()
-    private var mConnected = false
-    private var mTimeInitialized = false
-    private var mEchoInitialized = false
-    private lateinit var mBluetoothAdapter: BluetoothAdapter
-    private lateinit var mBluetoothLeScanner: BluetoothLeScanner
-    private var mScanCallback: ScanCallback? = null
-    private var mGatt: BluetoothGatt? = null
+    private var isScanning = false
+    private var handler: Handler? = null
+    private var logHandler: Handler? = null
+    private var scanResults = HashMap<String, BluetoothDevice>()
+    private var isConnected = false
+    private var timeInitialized = false
+    private var echoInitialized = false
+    private lateinit var bluetoothAdapter: BluetoothAdapter
+    private lateinit var bluetoothLeScanner: BluetoothLeScanner
+    private var scanCallback: ScanCallback? = null
+    private var gatt: BluetoothGatt? = null
 
     // Lifecycle
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        mLogHandler = Handler(Looper.getMainLooper())
+        logHandler = Handler(Looper.getMainLooper())
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        mBluetoothAdapter = bluetoothManager.adapter
+        bluetoothAdapter = bluetoothManager.adapter
         @SuppressLint("HardwareIds")
         val deviceInfo = ("Device Info"
-                + "\nName: " + mBluetoothAdapter.name
-                + "\nAddress: " + mBluetoothAdapter.address)
+                + "\nName: " + bluetoothAdapter.name
+                + "\nAddress: " + bluetoothAdapter.address)
         binding = DataBindingUtil.setContentView(this, R.layout.activity_client)
         with(binding) {
             clientDeviceInfoTextView.text = deviceInfo
@@ -72,62 +70,61 @@ class ClientActivity : AppCompatActivity() {
 
     // Scanning
     private fun startScan() {
-        if (!hasPermissions() || mScanning) {
+        if (!hasPermissions() || isScanning) {
             return
         }
         disconnectGattServer()
         binding.serverListContainer.removeAllViews()
-        mScanResults = HashMap()
-        mScanCallback = BtleScanCallback(mScanResults)
-        mBluetoothLeScanner = mBluetoothAdapter.bluetoothLeScanner
+        scanResults = HashMap()
+        scanCallback = BtleScanCallback(scanResults)
+        bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
         // Note: Filtering does not work the same (or at all) on most devices. It also is unable to
-// search for a mask or anything less than a full UUID.
-// Unless the full UUID of the server is known, manual filtering may be necessary.
-// For example, when looking for a brand of device that contains a char sequence in the UUID
+        // search for a mask or anything less than a full UUID.
+        // Unless the full UUID of the server is known, manual filtering may be necessary.
+        // For example, when looking for a brand of device that contains a char sequence in the UUID
         val scanFilter = ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
                 .build()
-        val filters: MutableList<ScanFilter> = ArrayList()
-        filters.add(scanFilter)
+        val filters = mutableListOf(scanFilter)
         val settings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
                 .build()
-        mBluetoothLeScanner.startScan(filters, settings, mScanCallback)
-        mHandler = Handler()
-        mHandler!!.postDelayed({ stopScan() }, SCAN_PERIOD)
-        mScanning = true
+        bluetoothLeScanner.startScan(filters, settings, scanCallback)
+        handler = Handler()
+        handler!!.postDelayed({ stopScan() }, SCAN_PERIOD)
+        isScanning = true
         log("Started scanning.")
     }
 
     private fun stopScan() {
-        if (mScanning && mBluetoothAdapter.isEnabled) {
-            mBluetoothLeScanner.stopScan(mScanCallback)
+        if (isScanning && bluetoothAdapter.isEnabled) {
+            bluetoothLeScanner.stopScan(scanCallback)
             scanComplete()
         }
-        mScanCallback = null
-        mScanning = false
-        mHandler = null
+        scanCallback = null
+        isScanning = false
+        handler = null
         log("Stopped scanning.")
     }
 
     private fun scanComplete() {
-        if (mScanResults.isEmpty()) {
+        if (scanResults.isEmpty()) {
             return
         }
-        for (deviceAddress in mScanResults.keys) {
-            val device = mScanResults[deviceAddress]
-            val viewModel = GattServerViewModel(device)
-            val binding: ViewGattServerBinding = DataBindingUtil.inflate(LayoutInflater.from(this),
+        scanResults.keys.forEach { deviceAddress ->
+            with(DataBindingUtil.inflate(LayoutInflater.from(this),
                     R.layout.view_gatt_server,
                     binding.serverListContainer,
-                    true)
-            binding.viewModel = viewModel
-            binding.connectGattServerButton.setOnClickListener { connectDevice(device) }
+                    true) as ViewGattServerBinding) {
+                val device = scanResults[deviceAddress]
+                this.viewModel = GattServerViewModel(device)
+                connectGattServerButton.setOnClickListener { connectDevice(device) }
+            }
         }
     }
 
     private fun hasPermissions(): Boolean {
-        if (!mBluetoothAdapter.isEnabled) {
+        if (!bluetoothAdapter.isEnabled) {
             requestBluetoothEnable()
             return false
         } else if (!hasLocationPermissions()) {
@@ -143,9 +140,8 @@ class ClientActivity : AppCompatActivity() {
         log("Requested user enables Bluetooth. Try starting the scan again.")
     }
 
-    private fun hasLocationPermissions(): Boolean {
-        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    }
+    private fun hasLocationPermissions() =
+            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     private fun requestLocationPermission() {
         requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_FINE_LOCATION)
@@ -154,17 +150,17 @@ class ClientActivity : AppCompatActivity() {
 
     // Gatt connection
     private fun connectDevice(device: BluetoothDevice?) {
-        log("Connecting to " + device!!.address)
+        log("Connecting to " + device?.address)
         val gattClientCallback = GattClientCallback()
-        mGatt = device.connectGatt(this, false, gattClientCallback)
+        gatt = device?.connectGatt(this, false, gattClientCallback)
     }
 
     // Messaging
     private fun sendMessage() {
-        if (!mConnected || !mEchoInitialized) {
+        if (!isConnected || !echoInitialized) {
             return
         }
-        val characteristic = BluetoothUtils.findEchoCharacteristic(mGatt)
+        val characteristic = BluetoothUtils.findEchoCharacteristic(gatt)
         if (characteristic == null) {
             logError("Unable to find echo characteristic.")
             disconnectGattServer()
@@ -172,13 +168,13 @@ class ClientActivity : AppCompatActivity() {
         }
         val message = binding.messageEditText.text.toString()
         log("Sending message: $message")
-        val messageBytes = StringUtils.bytesFromString(message)
+        val messageBytes = message.toByteArray()
         if (messageBytes.isEmpty()) {
             logError("Unable to convert message to bytes")
             return
         }
         characteristic.value = messageBytes
-        val success = mGatt!!.writeCharacteristic(characteristic)
+        val success = gatt!!.writeCharacteristic(characteristic)
         if (success) {
             log("Wrote: " + StringUtils.byteArrayInHexFormat(messageBytes))
         } else {
@@ -187,46 +183,32 @@ class ClientActivity : AppCompatActivity() {
     }
 
     // Logging
-    private fun clearLogs() {
-        mLogHandler!!.post { binding!!.viewClientLog.logTextView.text = "" }
-    }
+    private fun clearLogs() =
+            logHandler!!.post { binding.viewClientLog.logTextView.text = "" }
 
     // Gat Client Actions
     fun log(msg: String) {
-        Log.d(TAG, msg)
-        mLogHandler!!.post {
-            with(binding) {
-                viewClientLog.logTextView.append(msg + "\n")
-                viewClientLog.logScrollView.post { viewClientLog.logScrollView.fullScroll(View.FOCUS_DOWN) }
+        Log.d("ClientActivity", msg)
+        logHandler!!.post {
+            with(binding.viewClientLog) {
+                logTextView.append(msg + "\n")
+                logScrollView.post { logScrollView.fullScroll(View.FOCUS_DOWN) }
             }
         }
     }
 
-    fun logError(msg: String) {
-        log("Error: $msg")
-    }
-
-    fun setConnected(connected: Boolean) {
-        mConnected = connected
-    }
-
-    fun initializeTime() {
-        mTimeInitialized = true
-    }
-
-    fun initializeEcho() {
-        mEchoInitialized = true
-    }
+    fun logError(msg: String) =
+            log("Error: $msg")
 
     fun disconnectGattServer() {
         log("Closing Gatt connection")
         clearLogs()
-        mConnected = false
-        mEchoInitialized = false
-        mTimeInitialized = false
-        if (mGatt != null) {
-            mGatt!!.disconnect()
-            mGatt!!.close()
+        isConnected = false
+        echoInitialized = false
+        timeInitialized = false
+        if (gatt != null) {
+            gatt!!.disconnect()
+            gatt!!.close()
         }
     }
 
@@ -236,21 +218,16 @@ class ClientActivity : AppCompatActivity() {
             addScanResult(result)
         }
 
-        override fun onBatchScanResults(results: List<ScanResult>) {
-            for (result in results) {
-                addScanResult(result)
-            }
-        }
+        override fun onBatchScanResults(results: List<ScanResult>) =
+                results.forEach { addScanResult(it) }
 
-        override fun onScanFailed(errorCode: Int) {
-            logError("BLE Scan Failed with code $errorCode")
-        }
+        override fun onScanFailed(errorCode: Int) =
+                logError("BLE Scan Failed with code $errorCode")
 
-        private fun addScanResult(result: ScanResult) {
-            val device = result.device
-            val deviceAddress = device.address
-            mScanResults[deviceAddress] = device
-        }
+        private fun addScanResult(result: ScanResult) =
+                with(result.device) {
+                    mScanResults[address] = this
+                }
 
     }
 
@@ -263,13 +240,13 @@ class ClientActivity : AppCompatActivity() {
                 disconnectGattServer()
                 return
             } else if (status != BluetoothGatt.GATT_SUCCESS) { // handle anything not SUCCESS as failure
-                logError("Connection not GATT sucess status $status")
+                logError("Connection not GATT success status $status")
                 disconnectGattServer()
                 return
             }
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 log("Connected to device " + gatt.device.address)
-                setConnected(true)
+                isConnected = true
                 gatt.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 log("Disconnected from device")
@@ -289,9 +266,9 @@ class ClientActivity : AppCompatActivity() {
                 return
             }
             log("Initializing: setting write type and enabling notification")
-            for (characteristic in matchingCharacteristics) {
-                characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                enableCharacteristicNotification(gatt, characteristic)
+            matchingCharacteristics.forEach {
+                it.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                enableCharacteristicNotification(gatt, it)
             }
         }
 
@@ -312,9 +289,9 @@ class ClientActivity : AppCompatActivity() {
                 readCharacteristic(characteristic)
             } else {
                 logError("Characteristic read unsuccessful, status: $status")
-                // Trying to read from the Time Characteristic? It doesnt have the property or permissions
-// set to allow this. Normally this would be an error and you would want to:
-// disconnectGattServer();
+                // Trying to read from the Time Characteristic? It doesn't have the property or permissions
+                // set to allow this. Normally this would be an error and you would want to call
+                // disconnectGattServer()
             }
         }
 
@@ -327,7 +304,7 @@ class ClientActivity : AppCompatActivity() {
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 log("Descriptor written successfully: " + descriptor.uuid.toString())
-                initializeTime()
+                timeInitialized = true
             } else {
                 logError("Descriptor write unsuccessful: " + descriptor.uuid.toString())
             }
@@ -338,7 +315,7 @@ class ClientActivity : AppCompatActivity() {
             if (characteristicWriteSuccess) {
                 log("Characteristic notification set successfully for " + characteristic.uuid.toString())
                 if (BluetoothUtils.isEchoCharacteristic(characteristic)) {
-                    initializeEcho()
+                    echoInitialized = true
                 } else if (BluetoothUtils.isTimeCharacteristic(characteristic)) {
                     enableCharacteristicConfigurationDescriptor(gatt, characteristic)
                 }
@@ -348,10 +325,9 @@ class ClientActivity : AppCompatActivity() {
         }
 
         // Sometimes the Characteristic does not have permissions, and instead its Descriptor holds them
-// See https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
+        // See https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
         private fun enableCharacteristicConfigurationDescriptor(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            val descriptorList = characteristic.descriptors
-            val descriptor = BluetoothUtils.findClientConfigurationDescriptor(descriptorList)
+            val descriptor = BluetoothUtils.findClientConfigurationDescriptor(characteristic.descriptors)
             if (descriptor == null) {
                 logError("Unable to find Characteristic Configuration Descriptor")
                 return
@@ -368,17 +344,12 @@ class ClientActivity : AppCompatActivity() {
         private fun readCharacteristic(characteristic: BluetoothGattCharacteristic) {
             val messageBytes = characteristic.value
             log("Read: " + StringUtils.byteArrayInHexFormat(messageBytes))
-            val message = StringUtils.stringFromBytes(messageBytes)
-            if (message == null) {
-                logError("Unable to convert bytes to string")
-                return
-            }
+            val message = String(messageBytes)
             log("Received message: $message")
         }
     }
 
     companion object {
-        private const val TAG = "ClientActivity"
         private const val REQUEST_ENABLE_BT = 1
         private const val REQUEST_FINE_LOCATION = 2
     }
