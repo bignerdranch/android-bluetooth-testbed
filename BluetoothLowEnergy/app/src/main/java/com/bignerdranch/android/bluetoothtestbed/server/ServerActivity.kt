@@ -24,7 +24,6 @@ import com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID
 import com.bignerdranch.android.bluetoothtestbed.R
 import com.bignerdranch.android.bluetoothtestbed.databinding.ActivityServerBinding
 import com.bignerdranch.android.bluetoothtestbed.util.BluetoothUtils
-import com.bignerdranch.android.bluetoothtestbed.util.ByteUtils
 import com.bignerdranch.android.bluetoothtestbed.util.StringUtils
 import java.text.SimpleDateFormat
 import java.util.*
@@ -307,7 +306,7 @@ class ServerActivity : AppCompatActivity() {
             if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.uuid)) {
                 sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
                 // Reverse message to differentiate original message & response
-                val response = ByteUtils.reverse(value)
+                val response = value.reversedArray()
                 characteristic.value = response
                 log("Sending: " + StringUtils.byteArrayInHexFormat(response))
                 notifyCharacteristicEcho(response)

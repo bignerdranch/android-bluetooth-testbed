@@ -1,11 +1,5 @@
 package com.bignerdranch.android.bluetoothtestbed.util;
 
-import android.util.Log;
-
-import androidx.annotation.Nullable;
-
-import java.io.UnsupportedEncodingException;
-
 /**
  * This class is meant to be a replacement for TextUtils to allow unit testing
  * of files that may want to use common TextUtils methods.
