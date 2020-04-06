@@ -26,22 +26,25 @@ import com.bignerdranch.android.bluetoothtestbed.util.StringUtils
 
 class ClientActivity : AppCompatActivity() {
     private lateinit var binding: ActivityClientBinding
+
     private var isScanning = false
-    private var handler: Handler? = null
-    private var logHandler: Handler? = null
-    private var scanResults = HashMap<String, BluetoothDevice>()
     private var isConnected = false
     private var timeInitialized = false
     private var echoInitialized = false
+
+    private var handler: Handler? = null
+    private var logHandler = Handler(Looper.getMainLooper())
+
+    private var scanResults = HashMap<String, BluetoothDevice>()
+    private var scanCallback: ScanCallback? = null
+
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private lateinit var bluetoothLeScanner: BluetoothLeScanner
-    private var scanCallback: ScanCallback? = null
     private var gatt: BluetoothGatt? = null
 
     // Lifecycle
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        logHandler = Handler(Looper.getMainLooper())
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
         @SuppressLint("HardwareIds")
@@ -184,12 +187,12 @@ class ClientActivity : AppCompatActivity() {
 
     // Logging
     private fun clearLogs() =
-            logHandler!!.post { binding.viewClientLog.logTextView.text = "" }
+            logHandler.post { binding.viewClientLog.logTextView.text = "" }
 
     // Gat Client Actions
     fun log(msg: String) {
         Log.d("ClientActivity", msg)
-        logHandler!!.post {
+        logHandler.post {
             with(binding.viewClientLog) {
                 logTextView.append(msg + "\n")
                 logScrollView.post { logScrollView.fullScroll(View.FOCUS_DOWN) }

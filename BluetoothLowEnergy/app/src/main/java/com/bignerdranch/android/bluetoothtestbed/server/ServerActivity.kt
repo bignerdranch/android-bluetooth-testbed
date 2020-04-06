@@ -30,34 +30,36 @@ import java.util.*
 import kotlin.experimental.and
 
 class ServerActivity : AppCompatActivity() {
-    private lateinit var mBinding: ActivityServerBinding
-    private var mHandler: Handler? = null
-    private var mLogHandler: Handler? = null
-    private var mDevices: MutableList<BluetoothDevice>? = null
-    private var mClientConfigurations: MutableMap<String, ByteArray>? = null
-    private var mGattServer: BluetoothGattServer? = null
-    private var mBluetoothManager: BluetoothManager? = null
-    private var mBluetoothAdapter: BluetoothAdapter? = null
-    private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
+    private lateinit var binding: ActivityServerBinding
+
+    private val handler = Handler()
+    private val logHandler = Handler(Looper.getMainLooper())
+
+    private val devices = mutableListOf<BluetoothDevice>()
+    private var clientConfigurations = mutableMapOf<String, ByteArray>()
+
+    private var gattServer: BluetoothGattServer? = null
+    private lateinit var bluetoothManager: BluetoothManager
+    private lateinit var bluetoothAdapter: BluetoothAdapter
+    private var bluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
+
     // Lifecycle
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        mHandler = Handler()
-        mLogHandler = Handler(Looper.getMainLooper())
-        mDevices = ArrayList()
-        mClientConfigurations = HashMap()
-        mBluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        mBluetoothAdapter = mBluetoothManager!!.adapter
-        mBinding = DataBindingUtil.setContentView(this, R.layout.activity_server)
-        mBinding.sendTimestampButton.setOnClickListener { v: View? -> sendTimestamp() }
-        mBinding.restartServerButton.setOnClickListener { v: View? -> restartServer() }
-        mBinding.viewServerLog.clearLogButton.setOnClickListener { v: View? -> clearLogs() }
+        bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothAdapter = bluetoothManager.adapter
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_server)
+        with(binding) {
+            sendTimestampButton.setOnClickListener { sendTimestamp() }
+            restartServerButton.setOnClickListener { restartServer() }
+            viewServerLog.clearLogButton.setOnClickListener { clearLogs() }
+        }
     }
 
     override fun onResume() {
         super.onResume()
         // Check if bluetooth is enabled
-        if (mBluetoothAdapter == null || !mBluetoothAdapter!!.isEnabled) { // Request user to enable it
+        if (!bluetoothAdapter.isEnabled) { // Request user to enable it
             val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             startActivity(enableBtIntent)
             finish()
@@ -70,18 +72,18 @@ class ServerActivity : AppCompatActivity() {
             return
         }
         // Check advertising
-        if (!mBluetoothAdapter!!.isMultipleAdvertisementSupported) { // Unable to run the server on this device, get a better device
+        if (!bluetoothAdapter.isMultipleAdvertisementSupported) { // Unable to run the server on this device, get a better device
             log("No Advertising Support.")
             finish()
             return
         }
-        mBluetoothLeAdvertiser = mBluetoothAdapter!!.bluetoothLeAdvertiser
+        bluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
         val gattServerCallback = GattServerCallback()
-        mGattServer = mBluetoothManager!!.openGattServer(this, gattServerCallback)
+        gattServer = bluetoothManager.openGattServer(this, gattServerCallback)
         @SuppressLint("HardwareIds") val deviceInfo = ("Device Info"
-                + "\nName: " + mBluetoothAdapter!!.name
-                + "\nAddress: " + mBluetoothAdapter!!.address)
-        mBinding!!.serverDeviceInfoTextView.text = deviceInfo
+                + "\nName: " + bluetoothAdapter.name
+                + "\nAddress: " + bluetoothAdapter.address)
+        binding.serverDeviceInfoTextView.text = deviceInfo
         setupServer()
         startAdvertising()
     }
@@ -115,12 +117,12 @@ class ServerActivity : AppCompatActivity() {
         notifyCharacteristic.addDescriptor(clientConfigurationDescriptor)
         service.addCharacteristic(writeCharacteristic)
         service.addCharacteristic(notifyCharacteristic)
-        mGattServer!!.addService(service)
+        gattServer!!.addService(service)
     }
 
     private fun stopServer() {
-        if (mGattServer != null) {
-            mGattServer!!.close()
+        if (gattServer != null) {
+            gattServer!!.close()
         }
     }
 
@@ -133,7 +135,7 @@ class ServerActivity : AppCompatActivity() {
 
     // Advertising
     private fun startAdvertising() {
-        if (mBluetoothLeAdvertiser == null) {
+        if (bluetoothLeAdvertiser == null) {
             return
         }
         val settings = AdvertiseSettings.Builder()
@@ -147,42 +149,40 @@ class ServerActivity : AppCompatActivity() {
                 .setIncludeDeviceName(true)
                 .addServiceUuid(parcelUuid)
                 .build()
-        mBluetoothLeAdvertiser!!.startAdvertising(settings, data, mAdvertiseCallback)
+        bluetoothLeAdvertiser!!.startAdvertising(settings, data, mAdvertiseCallback)
     }
 
     private fun stopAdvertising() {
-        if (mBluetoothLeAdvertiser != null) {
-            mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
+        if (bluetoothLeAdvertiser != null) {
+            bluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
         }
     }
 
-    private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            log("Peripheral advertising started.")
-        }
+    private val mAdvertiseCallback: AdvertiseCallback =
+            object : AdvertiseCallback() {
+                override fun onStartSuccess(settingsInEffect: AdvertiseSettings) =
+                        log("Peripheral advertising started.")
 
-        override fun onStartFailure(errorCode: Int) {
-            log("Peripheral advertising failed: $errorCode")
-        }
-    }
+                override fun onStartFailure(errorCode: Int) =
+                        log("Peripheral advertising failed: $errorCode")
+            }
 
     // Notifications
-    private fun notifyCharacteristicTime(value: ByteArray) {
-        notifyCharacteristic(value, CHARACTERISTIC_TIME_UUID)
-    }
+    private fun notifyCharacteristicTime(value: ByteArray) =
+            notifyCharacteristic(value, CHARACTERISTIC_TIME_UUID)
 
     private fun notifyCharacteristic(value: ByteArray, uuid: UUID) {
-        mHandler!!.post {
-            val service = mGattServer!!.getService(SERVICE_UUID)
+        handler.post {
+            val service = gattServer!!.getService(SERVICE_UUID)
             val characteristic = service.getCharacteristic(uuid)
             log("Notifying characteristic " + characteristic.uuid.toString()
                     + ", new value: " + StringUtils.byteArrayInHexFormat(value))
             characteristic.value = value
             // Indications require confirmation, notifications do not
             val confirm = BluetoothUtils.requiresConfirmation(characteristic)
-            for (device in mDevices!!) {
+            for (device in devices) {
                 if (clientEnabledNotifications(device, characteristic)) {
-                    mGattServer!!.notifyCharacteristicChanged(device, characteristic, confirm)
+                    gattServer!!.notifyCharacteristicChanged(device, characteristic, confirm)
                 }
             }
         }
@@ -194,7 +194,7 @@ class ServerActivity : AppCompatActivity() {
                 ?: // There is no client configuration descriptor, treat as true
                 return true
         val deviceAddress = device.address
-        val clientConfiguration = mClientConfigurations!![deviceAddress]
+        val clientConfiguration = clientConfigurations[deviceAddress]
                 ?: // Descriptor has not been set
                 return false
         val notificationEnabled = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -205,7 +205,7 @@ class ServerActivity : AppCompatActivity() {
 
     // Characteristic operations
     private val timestampBytes: ByteArray
-        private get() {
+        get() {
             @SuppressLint("SimpleDateFormat") val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
             val timestamp = dateFormat.format(Date())
             return timestamp.toByteArray()
@@ -217,45 +217,42 @@ class ServerActivity : AppCompatActivity() {
     }
 
     // Logging
-    private fun clearLogs() {
-        mLogHandler!!.post { mBinding!!.viewServerLog.logTextView.text = "" }
-    }
+    private fun clearLogs() =
+            logHandler.post { binding.viewServerLog.logTextView.text = "" }
 
     // Gatt Server Actions
     fun log(msg: String) {
         Log.d(TAG, msg)
-        mLogHandler!!.post {
-            mBinding!!.viewServerLog.logTextView.append(msg + "\n")
-            mBinding!!.viewServerLog.logScrollView.post { mBinding!!.viewServerLog.logScrollView.fullScroll(View.FOCUS_DOWN) }
+        logHandler.post {
+            binding.viewServerLog.logTextView.append(msg + "\n")
+            binding.viewServerLog.logScrollView.post { binding.viewServerLog.logScrollView.fullScroll(View.FOCUS_DOWN) }
         }
     }
 
     fun addDevice(device: BluetoothDevice) {
-        log("Deviced added: " + device.address)
-        mHandler!!.post { mDevices!!.add(device) }
+        log("Device added: " + device.address)
+        handler.post { devices.add(device) }
     }
 
     fun removeDevice(device: BluetoothDevice) {
-        log("Deviced removed: " + device.address)
-        mHandler!!.post {
-            mDevices!!.remove(device)
+        log("Device removed: " + device.address)
+        handler.post {
+            devices.remove(device)
             val deviceAddress = device.address
-            mClientConfigurations!!.remove(deviceAddress)
+            clientConfigurations.remove(deviceAddress)
         }
     }
 
     fun addClientConfiguration(device: BluetoothDevice, value: ByteArray) {
         val deviceAddress = device.address
-        mClientConfigurations!![deviceAddress] = value
+        clientConfigurations[deviceAddress] = value
     }
 
-    fun sendResponse(device: BluetoothDevice?, requestId: Int, status: Int, offset: Int, value: ByteArray?) {
-        mGattServer!!.sendResponse(device, requestId, status, 0, null)
-    }
+    fun sendResponse(device: BluetoothDevice?, requestId: Int, status: Int, offset: Int, value: ByteArray?) =
+            gattServer!!.sendResponse(device, requestId, status, offset, null)
 
-    fun notifyCharacteristicEcho(value: ByteArray) {
-        notifyCharacteristic(value, CHARACTERISTIC_ECHO_UUID)
-    }
+    fun notifyCharacteristicEcho(value: ByteArray) =
+            notifyCharacteristic(value, CHARACTERISTIC_ECHO_UUID)
 
     // Gatt Callback
     private inner class GattServerCallback : BluetoothGattServerCallback() {
@@ -303,7 +300,7 @@ class ServerActivity : AppCompatActivity() {
                     value)
             log("onCharacteristicWriteRequest" + characteristic.uuid.toString()
                     + "\nReceived: " + StringUtils.byteArrayInHexFormat(value))
-            if (CHARACTERISTIC_ECHO_UUID.equals(characteristic.uuid)) {
+            if (CHARACTERISTIC_ECHO_UUID == characteristic.uuid) {
                 sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
                 // Reverse message to differentiate original message & response
                 val response = value.reversedArray()
