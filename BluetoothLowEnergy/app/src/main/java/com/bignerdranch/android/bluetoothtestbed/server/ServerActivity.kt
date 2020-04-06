@@ -80,7 +80,8 @@ class ServerActivity : AppCompatActivity() {
         bluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
         val gattServerCallback = GattServerCallback()
         gattServer = bluetoothManager.openGattServer(this, gattServerCallback)
-        @SuppressLint("HardwareIds") val deviceInfo = ("Device Info"
+        @SuppressLint("HardwareIds")
+        val deviceInfo = ("Device Info"
                 + "\nName: " + bluetoothAdapter.name
                 + "\nAddress: " + bluetoothAdapter.address)
         binding.serverDeviceInfoTextView.text = deviceInfo
@@ -96,34 +97,40 @@ class ServerActivity : AppCompatActivity() {
 
     // GattServer
     private fun setupServer() {
-        val service = BluetoothGattService(SERVICE_UUID,
-                BluetoothGattService.SERVICE_TYPE_PRIMARY)
         // Write characteristic
         val writeCharacteristic = BluetoothGattCharacteristic(
                 CHARACTERISTIC_ECHO_UUID,
-                BluetoothGattCharacteristic.PROPERTY_WRITE,  // Somehow this is not necessary, the client can still enable notifications
+                BluetoothGattCharacteristic.PROPERTY_WRITE,
+                // Somehow this is not necessary, the client can still enable notifications
 //                        | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                 BluetoothGattCharacteristic.PERMISSION_WRITE)
+
         // Characteristic with Descriptor
+        val clientConfigurationDescriptor = BluetoothGattDescriptor(
+                CLIENT_CONFIGURATION_DESCRIPTOR_UUID,
+                BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE).apply {
+            value = BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+        }
         val notifyCharacteristic = BluetoothGattCharacteristic(
-                CHARACTERISTIC_TIME_UUID,  // Somehow this is not necessary, the client can still enable notifications
+                CHARACTERISTIC_TIME_UUID,
+                // Somehow this is not necessary, the client can still enable notifications
 //                BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                 0,
-                0)
-        val clientConfigurationDescriptor = BluetoothGattDescriptor(
-                CLIENT_CONFIGURATION_DESCRIPTOR_UUID, BluetoothGattDescriptor.PERMISSION_READ
-                or BluetoothGattDescriptor.PERMISSION_WRITE)
-        clientConfigurationDescriptor.value = BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
-        notifyCharacteristic.addDescriptor(clientConfigurationDescriptor)
-        service.addCharacteristic(writeCharacteristic)
-        service.addCharacteristic(notifyCharacteristic)
-        gattServer!!.addService(service)
+                0).apply {
+            addDescriptor(clientConfigurationDescriptor)
+        }
+
+        gattServer!!.addService(
+                BluetoothGattService(SERVICE_UUID,
+                        BluetoothGattService.SERVICE_TYPE_PRIMARY).apply {
+                    addCharacteristic(writeCharacteristic)
+                    addCharacteristic(notifyCharacteristic)
+                }
+        )
     }
 
     private fun stopServer() {
-        if (gattServer != null) {
-            gattServer!!.close()
-        }
+        gattServer?.close()
     }
 
     private fun restartServer() {
@@ -135,9 +142,6 @@ class ServerActivity : AppCompatActivity() {
 
     // Advertising
     private fun startAdvertising() {
-        if (bluetoothLeAdvertiser == null) {
-            return
-        }
         val settings = AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
                 .setConnectable(true)
@@ -149,13 +153,11 @@ class ServerActivity : AppCompatActivity() {
                 .setIncludeDeviceName(true)
                 .addServiceUuid(parcelUuid)
                 .build()
-        bluetoothLeAdvertiser!!.startAdvertising(settings, data, mAdvertiseCallback)
+        bluetoothLeAdvertiser?.startAdvertising(settings, data, mAdvertiseCallback)
     }
 
     private fun stopAdvertising() {
-        if (bluetoothLeAdvertiser != null) {
-            bluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
-        }
+        bluetoothLeAdvertiser?.stopAdvertising(mAdvertiseCallback)
     }
 
     private val mAdvertiseCallback: AdvertiseCallback =
@@ -173,16 +175,19 @@ class ServerActivity : AppCompatActivity() {
 
     private fun notifyCharacteristic(value: ByteArray, uuid: UUID) {
         handler.post {
-            val service = gattServer!!.getService(SERVICE_UUID)
-            val characteristic = service.getCharacteristic(uuid)
-            log("Notifying characteristic " + characteristic.uuid.toString()
-                    + ", new value: " + StringUtils.byteArrayInHexFormat(value))
-            characteristic.value = value
-            // Indications require confirmation, notifications do not
-            val confirm = BluetoothUtils.requiresConfirmation(characteristic)
-            for (device in devices) {
-                if (clientEnabledNotifications(device, characteristic)) {
-                    gattServer!!.notifyCharacteristicChanged(device, characteristic, confirm)
+            gattServer?.getService(SERVICE_UUID)?.let { service ->
+                with(service.getCharacteristic(uuid)) {
+                    log("Notifying characteristic "
+                            + this.uuid.toString()
+                            + ", new value: " + StringUtils.byteArrayInHexFormat(value))
+                    this.value = value
+                    // Indications require confirmation, notifications do not
+                    val confirm = BluetoothUtils.requiresConfirmation(this)
+                    devices.forEach {
+                        if (clientEnabledNotifications(it, this)) {
+                            gattServer!!.notifyCharacteristicChanged(it, this, confirm)
+                        }
+                    }
                 }
             }
         }
@@ -206,15 +211,14 @@ class ServerActivity : AppCompatActivity() {
     // Characteristic operations
     private val timestampBytes: ByteArray
         get() {
-            @SuppressLint("SimpleDateFormat") val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+            @SuppressLint("SimpleDateFormat")
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
             val timestamp = dateFormat.format(Date())
             return timestamp.toByteArray()
         }
 
-    private fun sendTimestamp() {
-        val timestampBytes = timestampBytes
-        notifyCharacteristicTime(timestampBytes)
-    }
+    private fun sendTimestamp() =
+            notifyCharacteristicTime(timestampBytes)
 
     // Logging
     private fun clearLogs() =
@@ -224,8 +228,10 @@ class ServerActivity : AppCompatActivity() {
     fun log(msg: String) {
         Log.d(TAG, msg)
         logHandler.post {
-            binding.viewServerLog.logTextView.append(msg + "\n")
-            binding.viewServerLog.logScrollView.post { binding.viewServerLog.logScrollView.fullScroll(View.FOCUS_DOWN) }
+            with(binding.viewServerLog) {
+                logTextView.append(msg + "\n")
+                logScrollView.post { binding.viewServerLog.logScrollView.fullScroll(View.FOCUS_DOWN) }
+            }
         }
     }
 
@@ -244,8 +250,7 @@ class ServerActivity : AppCompatActivity() {
     }
 
     fun addClientConfiguration(device: BluetoothDevice, value: ByteArray) {
-        val deviceAddress = device.address
-        clientConfigurations[deviceAddress] = value
+        clientConfigurations[device.address] = value
     }
 
     fun sendResponse(device: BluetoothDevice?, requestId: Int, status: Int, offset: Int, value: ByteArray?) =
@@ -258,7 +263,8 @@ class ServerActivity : AppCompatActivity() {
     private inner class GattServerCallback : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             super.onConnectionStateChange(device, status, newState)
-            log("onConnectionStateChange " + device.address
+            log("onConnectionStateChange "
+                    + device.address
                     + "\nstatus " + status
                     + "\nnewState " + newState)
             if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -269,7 +275,7 @@ class ServerActivity : AppCompatActivity() {
         }
 
         // The Gatt will reject Characteristic Read requests that do not have the permission set,
-// so there is no need to check inside the callback
+        // so there is no need to check inside the callback
         override fun onCharacteristicReadRequest(device: BluetoothDevice,
                                                  requestId: Int,
                                                  offset: Int,
@@ -283,7 +289,7 @@ class ServerActivity : AppCompatActivity() {
         }
 
         // The Gatt will reject Characteristic Write requests that do not have the permission set,
-// so there is no need to check inside the callback
+        // so there is no need to check inside the callback
         override fun onCharacteristicWriteRequest(device: BluetoothDevice,
                                                   requestId: Int,
                                                   characteristic: BluetoothGattCharacteristic,
@@ -311,7 +317,7 @@ class ServerActivity : AppCompatActivity() {
         }
 
         // The Gatt will reject Descriptor Read requests that do not have the permission set,
-// so there is no need to check inside the callback
+        // so there is no need to check inside the callback
         override fun onDescriptorReadRequest(device: BluetoothDevice,
                                              requestId: Int,
                                              offset: Int,
@@ -321,7 +327,7 @@ class ServerActivity : AppCompatActivity() {
         }
 
         // The Gatt will reject Descriptor Write requests that do not have the permission set,
-// so there is no need to check inside the callback
+        // so there is no need to check inside the callback
         override fun onDescriptorWriteRequest(device: BluetoothDevice,
                                               requestId: Int,
                                               descriptor: BluetoothGattDescriptor,
@@ -332,7 +338,7 @@ class ServerActivity : AppCompatActivity() {
             super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value)
             log("onDescriptorWriteRequest: " + descriptor.uuid.toString()
                     + "\nvalue: " + StringUtils.byteArrayInHexFormat(value))
-            if (CLIENT_CONFIGURATION_DESCRIPTOR_UUID.equals(descriptor.uuid)) {
+            if (CLIENT_CONFIGURATION_DESCRIPTOR_UUID == descriptor.uuid) {
                 addClientConfiguration(device, value)
                 sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
             }
