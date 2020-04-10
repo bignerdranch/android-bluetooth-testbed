@@ -129,9 +129,8 @@ class ServerActivity : AppCompatActivity() {
         )
     }
 
-    private fun stopServer() {
-        gattServer?.close()
-    }
+    private fun stopServer() =
+            gattServer?.close()
 
     private fun restartServer() {
         stopAdvertising()
@@ -156,9 +155,8 @@ class ServerActivity : AppCompatActivity() {
         bluetoothLeAdvertiser?.startAdvertising(settings, data, mAdvertiseCallback)
     }
 
-    private fun stopAdvertising() {
-        bluetoothLeAdvertiser?.stopAdvertising(mAdvertiseCallback)
-    }
+    private fun stopAdvertising() =
+            bluetoothLeAdvertiser?.stopAdvertising(mAdvertiseCallback)
 
     private val mAdvertiseCallback: AdvertiseCallback =
             object : AdvertiseCallback() {
@@ -202,10 +200,7 @@ class ServerActivity : AppCompatActivity() {
         val clientConfiguration = clientConfigurations[deviceAddress]
                 ?: // Descriptor has not been set
                 return false
-        val notificationEnabled = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        return clientConfiguration.size == notificationEnabled.size
-                && clientConfiguration[0] and notificationEnabled[0] == notificationEnabled[0]
-                && clientConfiguration[1] and notificationEnabled[1] == notificationEnabled[1]
+        return Arrays.equals(clientConfiguration, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
     }
 
     // Characteristic operations

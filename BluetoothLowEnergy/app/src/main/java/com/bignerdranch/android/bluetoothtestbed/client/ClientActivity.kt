@@ -16,6 +16,8 @@ import android.view.LayoutInflater
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
+import com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_ECHO_UUID
+import com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_TIME_UUID
 import com.bignerdranch.android.bluetoothtestbed.Constants.SCAN_PERIOD
 import com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID
 import com.bignerdranch.android.bluetoothtestbed.R
@@ -23,6 +25,7 @@ import com.bignerdranch.android.bluetoothtestbed.databinding.ActivityClientBindi
 import com.bignerdranch.android.bluetoothtestbed.databinding.ViewGattServerBinding
 import com.bignerdranch.android.bluetoothtestbed.util.BluetoothUtils
 import com.bignerdranch.android.bluetoothtestbed.util.StringUtils
+
 
 class ClientActivity : AppCompatActivity() {
     private lateinit var binding: ActivityClientBinding
@@ -160,10 +163,10 @@ class ClientActivity : AppCompatActivity() {
 
     // Messaging
     private fun sendMessage() {
-        if (!isConnected || !echoInitialized) {
+        if (gatt == null || !isConnected || !echoInitialized) {
             return
         }
-        val characteristic = BluetoothUtils.findEchoCharacteristic(gatt)
+        val characteristic = BluetoothUtils.findEchoCharacteristic(gatt!!)
         if (characteristic == null) {
             logError("Unable to find echo characteristic.")
             disconnectGattServer()
