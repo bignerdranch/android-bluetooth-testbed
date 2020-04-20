@@ -276,6 +276,17 @@ class ClientActivity : AppCompatActivity() {
                 it.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
                 enableCharacteristicNotification(gatt, it)
             }
+
+            /*
+            gatt.services.find { it.uuid == SERVICE_UUID }
+                    ?.characteristics?.find { it.uuid == CHARACTERISTIC_TIME_UUID }
+                    ?.let {
+                        if (gatt.setCharacteristicNotification(it, true)) {
+                            log("Characteristic notification set successfully for " + it.uuid.toString())
+                            enableCharacteristicConfigurationDescriptor(gatt, it)
+                        }
+                    }
+             */
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {

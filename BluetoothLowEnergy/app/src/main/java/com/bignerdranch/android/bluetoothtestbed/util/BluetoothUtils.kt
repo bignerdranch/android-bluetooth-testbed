@@ -8,7 +8,6 @@ import com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_ECHO_S
 import com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_TIME_STRING
 import com.bignerdranch.android.bluetoothtestbed.Constants.CLIENT_CONFIGURATION_DESCRIPTOR_SHORT_ID
 import com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_STRING
-import java.util.*
 
 object BluetoothUtils {
 

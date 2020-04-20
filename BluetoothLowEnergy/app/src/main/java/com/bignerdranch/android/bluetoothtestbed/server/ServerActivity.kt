@@ -174,16 +174,16 @@ class ServerActivity : AppCompatActivity() {
     private fun notifyCharacteristic(value: ByteArray, uuid: UUID) {
         handler.post {
             gattServer?.getService(SERVICE_UUID)?.let { service ->
-                with(service.getCharacteristic(uuid)) {
+                service.getCharacteristic(uuid)?.let {
                     log("Notifying characteristic "
-                            + this.uuid.toString()
+                            + it.uuid.toString()
                             + ", new value: " + StringUtils.byteArrayInHexFormat(value))
-                    this.value = value
+                    it.value = value
                     // Indications require confirmation, notifications do not
-                    val confirm = BluetoothUtils.requiresConfirmation(this)
-                    devices.forEach {
-                        if (clientEnabledNotifications(it, this)) {
-                            gattServer!!.notifyCharacteristicChanged(it, this, confirm)
+                    val confirm = BluetoothUtils.requiresConfirmation(it)
+                    devices.forEach { device ->
+                        if (clientEnabledNotifications(device, it)) {
+                            gattServer!!.notifyCharacteristicChanged(device, it, confirm)
                         }
                     }
                 }
