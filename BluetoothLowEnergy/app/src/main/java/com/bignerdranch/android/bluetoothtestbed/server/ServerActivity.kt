@@ -27,7 +27,6 @@ import com.bignerdranch.android.bluetoothtestbed.util.BluetoothUtils
 import com.bignerdranch.android.bluetoothtestbed.util.StringUtils
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.experimental.and
 
 class ServerActivity : AppCompatActivity() {
     private lateinit var binding: ActivityServerBinding
@@ -173,22 +172,40 @@ class ServerActivity : AppCompatActivity() {
 
     private fun notifyCharacteristic(value: ByteArray, uuid: UUID) {
         handler.post {
-            gattServer?.getService(SERVICE_UUID)?.let { service ->
-                service.getCharacteristic(uuid)?.let {
-                    log("Notifying characteristic "
-                            + it.uuid.toString()
-                            + ", new value: " + StringUtils.byteArrayInHexFormat(value))
-                    it.value = value
-                    // Indications require confirmation, notifications do not
-                    val confirm = BluetoothUtils.requiresConfirmation(it)
-                    devices.forEach { device ->
-                        if (clientEnabledNotifications(device, it)) {
-                            gattServer!!.notifyCharacteristicChanged(device, it, confirm)
+            gattServer?.getService(SERVICE_UUID)
+                    ?.getCharacteristic(uuid)?.let {
+                        log("Notifying characteristic "
+                                + it.uuid.toString()
+                                + ", new value: " + StringUtils.byteArrayInHexFormat(value))
+                        it.value = value
+                        // Indications require confirmation, notifications do not
+                        val confirm = BluetoothUtils.requiresConfirmation(it)
+                        devices.forEach { device ->
+                            if (clientEnabledNotifications(device, it)) {
+                                gattServer!!.notifyCharacteristicChanged(device, it, confirm)
+                            }
                         }
                     }
-                }
-            }
         }
+
+        handler.post {
+            gattServer?.getService(SERVICE_UUID)
+                    ?.getCharacteristic(uuid)?.let {
+                        log("Notifying characteristic "
+                                + it.uuid.toString()
+                                + ", new value: " + StringUtils.byteArrayInHexFormat(value))
+                        it.value = value
+                        // Indications require confirmation, notifications do not
+                        val confirm =
+                                it.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE == BluetoothGattCharacteristic.PROPERTY_INDICATE
+                        devices.forEach { device ->
+                            if (clientEnabledNotifications(device, it)) {
+                                gattServer!!.notifyCharacteristicChanged(device, it, confirm)
+                            }
+                        }
+                    }
+        }
+
     }
 
     private fun clientEnabledNotifications(device: BluetoothDevice, characteristic: BluetoothGattCharacteristic): Boolean {
@@ -211,6 +228,7 @@ class ServerActivity : AppCompatActivity() {
             val timestamp = dateFormat.format(Date())
             return timestamp.toByteArray()
         }
+
 
     private fun sendTimestamp() =
             notifyCharacteristicTime(timestampBytes)

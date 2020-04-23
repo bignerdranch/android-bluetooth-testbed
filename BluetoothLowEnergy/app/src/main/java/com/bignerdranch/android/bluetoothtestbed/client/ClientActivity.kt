@@ -16,8 +16,6 @@ import android.view.LayoutInflater
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.databinding.DataBindingUtil
-import com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_ECHO_UUID
-import com.bignerdranch.android.bluetoothtestbed.Constants.CHARACTERISTIC_TIME_UUID
 import com.bignerdranch.android.bluetoothtestbed.Constants.SCAN_PERIOD
 import com.bignerdranch.android.bluetoothtestbed.Constants.SERVICE_UUID
 import com.bignerdranch.android.bluetoothtestbed.R
